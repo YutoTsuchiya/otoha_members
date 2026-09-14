@@ -7,7 +7,7 @@ import {
   verifyPassword,
 } from "../../../shared/auth.ts";
 
-export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+export const onRequestPost: ApiHandler = async (ctx) => {
   const body = await readJson(ctx.request);
   const password = typeof body?.password === "string" ? body.password : "";
   if (!(await verifyPassword(ctx.env, password))) {

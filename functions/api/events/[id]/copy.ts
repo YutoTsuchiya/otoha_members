@@ -2,7 +2,7 @@
 import { idParam, json, jsonError, type EventRow } from "../../../../shared/api-helpers.ts";
 import { requireAuth } from "../../../../shared/auth.ts";
 
-export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+export const onRequestPost: ApiHandler = async (ctx) => {
   const denied = await requireAuth(ctx);
   if (denied) return denied;
 

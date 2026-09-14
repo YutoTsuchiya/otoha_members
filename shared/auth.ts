@@ -5,13 +5,16 @@
 // シークレットは2つ:
 //   AUTH_PASSWORD … 全員が共有するパスワード
 //   AUTH_SECRET   … セッション署名に使う鍵
-// ローカルは .dev.vars、本番は `wrangler pages secret put` で設定する。
+// ローカルは .dev.vars、本番は `wrangler secret put` で設定する。
 
 declare global {
-  interface Env {
-    AUTH_PASSWORD?: string;
-    AUTH_SECRET?: string;
+  /** Workers の API ハンドラーの文脈。ルーターが URL をパースして params を渡す。 */
+  interface ApiContext {
+    request: Request;
+    env: Env;
+    params: Record<string, string>;
   }
+  type ApiHandler = (ctx: ApiContext) => Response | Promise<Response>;
 }
 
 export const SESSION_COOKIE = "otoha_session";

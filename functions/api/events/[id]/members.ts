@@ -3,7 +3,7 @@
 import { idParam, json, jsonError, readName, type MemberRow } from "../../../../shared/api-helpers.ts";
 import { requireAuth } from "../../../../shared/auth.ts";
 
-export const onRequestGet: PagesFunction<Env> = async (ctx) => {
+export const onRequestGet: ApiHandler = async (ctx) => {
   const denied = await requireAuth(ctx);
   if (denied) return denied;
 
@@ -22,7 +22,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   return json(results);
 };
 
-export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+export const onRequestPost: ApiHandler = async (ctx) => {
   const denied = await requireAuth(ctx);
   if (denied) return denied;
 

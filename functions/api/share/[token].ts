@@ -1,7 +1,7 @@
 // GET /api/share/:token  閲覧用URL（読み取り専用）。パスワード不要で演奏の内容を返す。
 import { json, jsonError, listSongsWithRows, type MemberRow } from "../../../shared/api-helpers.ts";
 
-export const onRequestGet: PagesFunction<Env> = async (ctx) => {
+export const onRequestGet: ApiHandler = async (ctx) => {
   const raw = ctx.params.token;
   const token = Array.isArray(raw) ? raw[0] : raw;
   if (!token) return jsonError("トークンが不正です", 400);

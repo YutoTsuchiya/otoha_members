@@ -1,7 +1,14 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "otoha-members",
-  "pages_build_output_dir": "dist",
+  "main": "functions/index.ts",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "secrets": {
+    "required": ["AUTH_PASSWORD", "AUTH_SECRET"]
+  },
   "compatibility_date": "2026-05-14",
   "d1_databases": [
     {

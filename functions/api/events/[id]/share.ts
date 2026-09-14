@@ -4,7 +4,7 @@
 import { idParam, json, jsonError, randomToken } from "../../../../shared/api-helpers.ts";
 import { requireAuth } from "../../../../shared/auth.ts";
 
-export const onRequestGet: PagesFunction<Env> = async (ctx) => {
+export const onRequestGet: ApiHandler = async (ctx) => {
   const denied = await requireAuth(ctx);
   if (denied) return denied;
 
@@ -20,7 +20,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   return json({ token: row.share_token ?? null });
 };
 
-export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+export const onRequestPost: ApiHandler = async (ctx) => {
   const denied = await requireAuth(ctx);
   if (denied) return denied;
 
@@ -37,7 +37,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   return json({ token });
 };
 
-export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
+export const onRequestDelete: ApiHandler = async (ctx) => {
   const denied = await requireAuth(ctx);
   if (denied) return denied;
 

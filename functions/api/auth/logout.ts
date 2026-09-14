@@ -1,7 +1,7 @@
 // POST /api/auth/logout  ログアウト（セッションクッキーを削除する）
 import { SESSION_COOKIE } from "../../../shared/auth.ts";
 
-export const onRequestPost: PagesFunction<Env> = async () => {
+export const onRequestPost: ApiHandler = async () => {
   return Response.json(
     { ok: true },
     {

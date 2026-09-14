@@ -1,4 +1,4 @@
-// Pages Functions から共有するヘルパー。
+// Workers から共有するヘルパー。
 // functions/ の中に置くとルートとして扱われてしまうため、この場所に置く。
 // （https://developers.cloudflare.com/pages/functions/module-support/）
 

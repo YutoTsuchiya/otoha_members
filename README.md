@@ -17,7 +17,7 @@
 | 役割 | 技術 |
 |---|---|
 | フロントエンド | React + TypeScript + Vite（`src/`） |
-| API | Cloudflare Pages Functions（`functions/api/`） |
+| API | Cloudflare Workers（`functions/`） |
 | データベース | Cloudflare D1（SQLite） |
 | 並び替え | dnd-kit |
 
@@ -36,11 +36,11 @@ npm run cf:dev     # http://localhost:8788 で起動（APIとフロントをま�
 
 ```bash
 npm run dev        # Vite (http://localhost:5173) — /api は下の wrangler にプロキシする設定が必要
-npm run cf:dev     # wrangler pages dev (http://localhost:8788)
+npm run cf:dev     # wrangler dev (http://localhost:8788)
 ```
 
 > `npm run cf:dev` は `dist/` を配信します。フロントの変更を反映するには `npm run build` を実行してください。
-> Vite のホットリロードを使いたい場合は `npx wrangler pages dev -- npm run dev` のプロキシモードが便利です。
+> Vite のホットリロードを使いたい場合は `npx wrangler dev -- npm run dev` のプロキシモードが便利です。
 
 ローカルのD1データは `.wrangler/state/` に保存されます。消したいときは `.wrangler` ディレクトリを削除してください。
 
@@ -62,13 +62,13 @@ npm run cf:dev     # wrangler pages dev (http://localhost:8788)
 | `AUTH_PASSWORD` | 全員が共有するパスワード |
 | `AUTH_SECRET` | セッション（Cookie）署名用の鍵。適当な長いランダム文字列が安全 |
 
-**ローカル開発**では、`wrangler pages dev` が `.dev.vars` を読まないため、`package.json` の `cf:dev` スクリプトに `--binding` フラグで値を渡しています。値を変えるときは `cf:dev` を編集してください。
+**ローカル開発**では、`.dev.vars.example` を `.dev.vars` にコピーして値を設定します（`wrangler dev` が自動で読み込みます）。
 
 **本番**では Cloudflare のシークレットとして設定します:
 
 ```bash
-npx wrangler pages secret put AUTH_PASSWORD
-npx wrangler pages secret put AUTH_SECRET
+npx wrangler secret put AUTH_PASSWORD
+npx wrangler secret put AUTH_SECRET
 ```
 
 ## Cloudflare へのデプロイ
@@ -92,7 +92,7 @@ npm run deploy
 2回目以降のデプロイは `npm run deploy` だけです。
 
 > 書き込み時だけ「D1のbindingが見つからない」エラーになる場合は、Cloudflareのダッシュボードで
-> Pagesプロジェクト → Settings → Bindings → Add → D1（binding名は `DB`）を追加して再デプロイしてください。
+> Workers & Pages のプロジェクト → Settings → Bindings → Add → D1（binding名は `DB`）を追加して再デプロイしてください。
 
 ## 主なコマンド
 
@@ -101,9 +101,9 @@ npm run deploy
 | `npm run cf:dev` | ローカルでAPI＋フロントを起動 |
 | `npm run dev` | Viteの開発サーバのみ |
 | `npm run build` | 本番ビルド（`dist/`） |
-| `npm run deploy` | ビルドしてCloudflare Pagesへデプロイ |
+| `npm run deploy` | ビルドしてCloudflare Workersへデプロイ |
 | `npm run db:local` / `db:remote` | スキーマ適用（ローカル / 本番） |
-| `npm run typecheck` | フロントとFunctionsの型チェック |
+| `npm run typecheck` | フロントとWorkerの型チェック |
 | `npm run types` | `worker-configuration.d.ts` を再生成 |
 
 ## API

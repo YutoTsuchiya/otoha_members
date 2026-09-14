@@ -3,7 +3,7 @@
 import { idParam, json, jsonError, readName, type MemberRow } from "../../../shared/api-helpers.ts";
 import { requireAuth } from "../../../shared/auth.ts";
 
-export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
+export const onRequestPatch: ApiHandler = async (ctx) => {
   const denied = await requireAuth(ctx);
   if (denied) return denied;
 
@@ -26,7 +26,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   return json(row);
 };
 
-export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
+export const onRequestDelete: ApiHandler = async (ctx) => {
   const denied = await requireAuth(ctx);
   if (denied) return denied;
 
