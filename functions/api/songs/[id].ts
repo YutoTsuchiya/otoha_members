@@ -65,7 +65,7 @@ export const onRequestPatch: ApiHandler = async (ctx) => {
   if (body.rows !== undefined) {
     const invalid = await validateRows(db, song.event_id, body.rows);
     if (invalid) return jsonError(invalid, 400);
-    await replaceSongSeats(db, id, body.rows as number[][]);
+    await replaceSongSeats(db, id, body.rows as (number | null)[][]);
   }
 
   if (body.parts !== undefined) {

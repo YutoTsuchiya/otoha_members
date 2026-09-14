@@ -3,6 +3,27 @@ function defaultRowCount(count: number): number {
   return Math.max(Math.floor(count / 6), 4);
 }
 
+/** 空席かどうか。正のIDはメンバー、負のIDは空席を表す。 */
+export function isEmptySeat(id: number): boolean {
+  return id < 0;
+}
+
+/** 通信形式（null=空席）→ 画面用（負ID=空席） */
+export function fromWire(rows: (number | null)[][]): number[][] {
+  let next = -1;
+  return rows.map((row) => row.map((id) => (id === null ? next-- : id)));
+}
+
+/** 画面用（負ID=空席）→ 通信形式（null=空席） */
+export function toWire(rows: number[][]): (number | null)[][] {
+  return rows.map((row) => row.map((id) => (id < 0 ? null : id)));
+}
+
+/** 空席を除いた人数（曲一覧の「○人」表示に使う） */
+export function memberCount(rows: (number | null)[][]): number {
+  return rows.flat().filter((id): id is number => id !== null).length;
+}
+
 /**
  * 指定された行数に、できるだけ均等に振り分ける。
  * 例: 12人を5行 → [3,3,2,2,2]

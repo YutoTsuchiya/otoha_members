@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS songs (
 CREATE TABLE IF NOT EXISTS song_members (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
   song_id   INTEGER NOT NULL REFERENCES songs(id)   ON DELETE CASCADE,
-  member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  -- NULL は空席を表す（通常の席はメンバーID）。
+  member_id INTEGER REFERENCES members(id) ON DELETE CASCADE,
   row_index INTEGER NOT NULL,
   position  INTEGER NOT NULL,
   -- 色分け（red/blue/yellow、未割当は NULL）

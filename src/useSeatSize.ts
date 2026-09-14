@@ -9,7 +9,7 @@ const SEAT_GAP = 10;
  * 人数に応じて座席の丸のサイズ（px）を計算し、画面内に収める（スクロールさせない）。
  * 最広行の人数と行数、コンテナ幅・画面高さから `--seat-size` の値を決める。
  */
-export function useSeatSize(layout: number[][]): {
+export function useSeatSize(layout: (number | null)[][]): {
   seatSize: number;
   scrollRef: RefObject<HTMLDivElement | null>;
 } {

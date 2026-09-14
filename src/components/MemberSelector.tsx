@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import type { Member } from "../types";
 
 /** 次の色に進める（なし → colorOrder の順に1周して「なし」に戻る） */
@@ -34,8 +35,21 @@ export default function MemberSelector({
   const selected = members.filter((member) => selectedIds.has(member.id));
   const unselected = members.filter((member) => !selectedIds.has(member.id));
 
+  // 並び替え（選択した人が上に移動）してもスクロール位置を保つ
+  const listRef = useRef<HTMLUListElement>(null);
+  const scrollTopRef = useRef(0);
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (list) list.scrollTop = scrollTopRef.current;
+  });
+
   return (
-    <ul className="member-select">
+    <ul
+      className="member-select"
+      ref={listRef}
+      onScroll={(e) => (scrollTopRef.current = e.currentTarget.scrollTop)}
+    >
       {[...selected, ...unselected].map((member) => {
         const isSelected = selectedIds.has(member.id);
         const color = colors?.[member.id] ?? null;

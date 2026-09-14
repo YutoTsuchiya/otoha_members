@@ -913,6 +913,15 @@ button:focus-visible {
   color: #831843;
 }
 
+/* 空席。目立たない破線の円 */
+.seat-circle.empty {
+  border-style: dashed;
+  border-color: #cbd5e1;
+  background: transparent;
+  color: transparent;
+  box-shadow: none;
+}
+
 /* 観客の表記（白いボックスの最上部） */
 .seat-audience {
   align-self: stretch;

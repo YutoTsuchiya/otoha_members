@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, errorMessage } from "../api";
+import { memberCount } from "../layout";
 import type { ShareData } from "../types";
 import SeatChartView from "./SeatChartView";
 
@@ -54,7 +55,7 @@ export default function ShareViewer({ token }: Props) {
                   >
                     <span className="item-name">{s.name}</span>
                     <span className="row-meta">
-                      <span className="event-count">{s.rows.flat().length}人</span>
+                      <span className="event-count">{memberCount(s.rows)}人</span>
                       <span className="row-arrow" aria-hidden="true">→</span>
                     </span>
                   </button>

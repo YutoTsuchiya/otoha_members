@@ -6,7 +6,7 @@ import type { Member, Part } from "../types";
 import { SeatCircle } from "./SortableSeat";
 
 interface Props {
-  layout: number[][];
+  layout: (number | null)[][];
   members: Member[];
   colors: Record<number, string>;
   parts: Part[];
@@ -40,9 +40,13 @@ export default function SeatChartView({ layout, members, colors, parts }: Props)
             key={rowIndex}
             style={{ "--row-shift": shifts[rowIndex] } as CSSProperties}
           >
-            {row.map((memberId) => (
-              <div className="seat" key={memberId}>
-                <SeatCircle name={nameOf(memberId)} color={colorOf(memberId)} />
+            {row.map((memberId, index) => (
+              <div className="seat" key={index}>
+                {memberId === null ? (
+                  <SeatCircle name="" empty />
+                ) : (
+                  <SeatCircle name={nameOf(memberId)} color={colorOf(memberId)} />
+                )}
               </div>
             ))}
           </div>

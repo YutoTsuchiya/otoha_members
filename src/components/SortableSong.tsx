@@ -1,5 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { memberCount } from "../layout";
 import type { Song } from "../types";
 
 interface Props {
@@ -27,7 +28,7 @@ export default function SortableSong({ song, onOpen }: Props) {
       <button type="button" className="item-main song-row" onClick={onOpen}>
         <span className="item-name">{song.name}</span>
         <span className="row-meta">
-          <span className="event-count">{song.rows.flat().length}人</span>
+          <span className="event-count">{memberCount(song.rows)}人</span>
           <span className="row-arrow" aria-hidden="true">→</span>
         </span>
       </button>

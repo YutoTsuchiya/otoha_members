@@ -28,8 +28,8 @@ export interface Song {
   event_id: number;
   name: string;
   created_at: string;
-  /** 席の配置。行ごとの参加者IDで、行の人数は固定ではない。 */
-  rows: number[][];
+  /** 席の配置。行ごとの参加者ID（正）または空席（null）。行の人数は固定ではない。 */
+  rows: (number | null)[][];
   /** 色分けのパート一覧（例: 赤=Aパート）。並び順に表示。 */
   parts: Part[];
   /** メンバーIDごとの色キー。未割当のメンバーは含まれない。 */

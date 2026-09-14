@@ -11,17 +11,19 @@ export function SeatCircle({
   name,
   color,
   dragging = false,
+  empty = false,
 }: {
   name: string;
   color?: string | null;
   dragging?: boolean;
+  empty?: boolean;
 }) {
-  const className = ["seat-circle", dragging ? "dragging" : "", color ?? ""]
+  const className = ["seat-circle", dragging ? "dragging" : "", empty ? "empty" : color ?? ""]
     .filter(Boolean)
     .join(" ");
   return (
     <div className={className} style={{ fontSize: fontSizeFor(name) }}>
-      {name}
+      {empty ? "" : name}
     </div>
   );
 }
@@ -31,6 +33,8 @@ interface Props {
   name: string;
   /** 色分け。未割当は null。 */
   color?: string | null;
+  /** 空席かどうか（空席は破線の円で、名前を持たない）。 */
+  empty?: boolean;
   /** 行の何番目か。持ち上げている間、元の位置に留めておくために使う */
   index: number;
   /** 動いている円は DragOverlay が描くので、元の席は隠しておく */
@@ -43,7 +47,7 @@ interface Props {
  * どこに落ちるかは座席表側が円の中心どうしで判定するので、
  * ここはドラッグできることだけを担当する。
  */
-export default function SortableSeat({ memberId, name, color, index, hidden, onRemove }: Props) {
+export default function SortableSeat({ memberId, name, color, empty = false, index, hidden, onRemove }: Props) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: memberId });
 
   // 持ち上げている間は行の幅を取らないようにする（元の場所に穴が残らないように）。
@@ -64,11 +68,11 @@ export default function SortableSeat({ memberId, name, color, index, hidden, onR
       {...attributes}
       {...listeners}
     >
-      <SeatCircle name={name} color={color} />
+      <SeatCircle name={name} color={color} empty={empty} />
       <button
         type="button"
         className="seat-remove"
-        aria-label={`${name} をこの曲から外す`}
+        aria-label={empty ? "空席を外す" : `${name} をこの曲から外す`}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={() => onRemove(memberId)}
       >

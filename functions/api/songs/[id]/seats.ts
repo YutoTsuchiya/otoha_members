@@ -31,7 +31,7 @@ export const onRequestPut: ApiHandler = async (ctx) => {
   const invalid = await validateRows(db, song.event_id, body.rows);
   if (invalid) return jsonError(invalid, 400);
 
-  const rows = body.rows as number[][];
+  const rows = body.rows as (number | null)[][];
   await replaceSongSeats(db, songId, rows);
 
   return json({ rows });

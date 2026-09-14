@@ -38,7 +38,7 @@ export interface Part {
 
 /** 曲の席と、メンバーごとの色。 */
 export interface SongSeats {
-  rows: number[][];
+  rows: (number | null)[][];
   colors: Record<number, string>;
 }
 
@@ -136,7 +136,8 @@ export async function validateRows(
   for (const row of value) {
     if (!Array.isArray(row) || row.length === 0) return "空の行は指定できません";
     for (const item of row) {
-      if (!Number.isInteger(item)) return "rows には整数のIDのみ指定できます";
+      if (item === null) continue; // 空席
+      if (!Number.isInteger(item) || (item as number) <= 0) return "rows には正の整数IDのみ指定できます";
       ids.push(item as number);
     }
   }
@@ -146,7 +147,7 @@ export async function validateRows(
 /** song_members の1行。 */
 interface SeatRow {
   row_index: number;
-  member_id: number;
+  member_id: number | null;
   color: string | null;
 }
 
@@ -192,7 +193,7 @@ export async function songRowsFor(
 export async function listSongsWithRows(
   db: D1Database,
   eventId: number,
-): Promise<(SongRow & { rows: number[][]; colors: Record<number, string>; parts: Part[] })[]> {
+): Promise<(SongRow & { rows: (number | null)[][]; colors: Record<number, string>; parts: Part[] })[]> {
   const { results } = await db
     .prepare("SELECT id, event_id, name, created_at, group_names FROM songs WHERE event_id = ? ORDER BY position, id")
     .bind(eventId)
@@ -213,8 +214,8 @@ export async function listSongsWithRows(
   });
 }
 
-function groupRows(rows: SeatRow[]): number[][] {
-  const layout: number[][] = [];
+function groupRows(rows: SeatRow[]): (number | null)[][] {
+  const layout: (number | null)[][] = [];
   for (const row of rows) {
     while (layout.length <= row.row_index) layout.push([]);
     layout[row.row_index].push(row.member_id);
@@ -225,7 +226,7 @@ function groupRows(rows: SeatRow[]): number[][] {
 function colorsFrom(rows: SeatRow[]): Record<number, string> {
   const colors: Record<number, string> = {};
   for (const row of rows) {
-    if (row.color) colors[row.member_id] = row.color;
+    if (row.color && row.member_id !== null) colors[row.member_id] = row.color;
   }
   return colors;
 }
@@ -234,7 +235,7 @@ function colorsFrom(rows: SeatRow[]): Record<number, string> {
 export async function replaceSongSeats(
   db: D1Database,
   songId: number,
-  rows: number[][],
+  rows: (number | null)[][],
 ): Promise<void> {
   // 並び替えでも色を保持できるよう、既存の色を先に控えておく
   const existing = await db
@@ -251,7 +252,7 @@ export async function replaceSongSeats(
           .prepare(
             "INSERT INTO song_members (song_id, member_id, row_index, position, color) VALUES (?, ?, ?, ?, ?)",
           )
-          .bind(songId, memberId, rowIndex, position, colorByMember.get(memberId) ?? null),
+          .bind(songId, memberId, rowIndex, position, memberId === null ? null : (colorByMember.get(memberId) ?? null)),
       ),
     ),
   ];

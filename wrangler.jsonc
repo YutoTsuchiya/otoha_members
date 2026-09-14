@@ -14,9 +14,7 @@
     {
       "binding": "DB",
       "database_name": "otoha-members",
-      // ↓ `npx wrangler d1 create otoha-members` の出力の database_id に置き換える
-      //   （ローカル開発だけなら未設定のままでも動きます）
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_id": "9631498e-a915-4743-b4f2-a052991238f3"
     }
   ]
 }

@@ -58,7 +58,7 @@ export const onRequestPost: ApiHandler = async (ctx) => {
     .run();
   const songId = created.meta.last_row_id;
 
-  const layout = rows as number[][];
+  const layout = rows as (number | null)[][];
   await replaceSongSeats(db, songId, layout);
 
   const row = await db

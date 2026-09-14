@@ -16,10 +16,13 @@ import {
   appendMember,
   distribute,
   findSlot,
+  fromWire,
+  isEmptySeat,
   placeMember,
   removeMember,
   rowShiftUnits,
   sameLayout,
+  toWire,
 } from "../layout";
 import { useAsyncAction } from "../useAsyncAction";
 import { useSeatSize } from "../useSeatSize";
@@ -165,7 +168,7 @@ export default function SeatingEditor({
         api<Member[]>(`/api/events/${eventId}/members`),
       ]);
       setMembers(memberList);
-      setLayout(song.rows);
+      setLayout(fromWire(song.rows));
       setParts(song.parts.length > 0 ? song.parts : [{ color: "red", name: "" }, { color: "blue", name: "" }]);
       setColors(song.colors);
       setError(null);
@@ -264,10 +267,12 @@ export default function SeatingEditor({
   const nameOf = (id: number) => nameById.get(id) ?? "?";
   const colorOf = (id: number) => colors[id] ?? null;
 
-  const seated = useMemo(() => layout.flat(), [layout]);
+  const totalSeats = useMemo(() => layout.flat(), [layout]);
+  // 空席は参加者ではないので、人数やメンバー選択には含めない
+  const seated = useMemo(() => totalSeats.filter((id) => !isEmptySeat(id)), [totalSeats]);
   const rowCount = layout.length;
-  // 1行1人まで。行数が人数を超えることはない。
-  const maxRows = Math.max(seated.length, 1);
+  // 1行1席まで。行数が席数（メンバー＋空席）を超えることはない。
+  const maxRows = Math.max(totalSeats.length, 1);
   const selectedIds = useMemo(() => new Set(seated), [seated]);
   const shifts = useMemo(() => rowShiftUnits(layout.map((row) => row.length)), [layout]);
 
@@ -281,13 +286,16 @@ export default function SeatingEditor({
       const seq = ++saveSeq.current;
       setStatus("saving");
       try {
-        const res = await api<{ rows: number[][] }>(`/api/songs/${songId}/seats`, {
+        const res = await api<{ rows: (number | null)[][] }>(`/api/songs/${songId}/seats`, {
           method: "PUT",
-          body: { rows: next },
+          body: { rows: toWire(next) },
         });
         if (seq !== saveSeq.current) return;
         // 同じ内容なら状態を作り直さない（アニメーションが途中で止まってしまうため）
-        setLayout((current) => (sameLayout(current, res.rows) ? current : res.rows));
+        setLayout((current) => {
+          const wire = fromWire(res.rows);
+          return sameLayout(current, wire) ? current : wire;
+        });
         setStatus("saved");
         setError(null);
       } catch (err) {
@@ -456,6 +464,7 @@ export default function SeatingEditor({
     const next = removeMember(layout, memberId);
     setLayout(next);
     void save(next);
+    if (isEmptySeat(memberId)) return; // 空席は色を持たない
     // 席から外れた人の色も状態から外す（DB側は replaceSongSeats で消える）
     setColors((current) => {
       const nextColors = { ...current };
@@ -470,16 +479,25 @@ export default function SeatingEditor({
     void save(next);
   };
 
+  // 空席を1つ末尾の行に足す（重複しない負のIDを振る）
+  const addEmptySeat = () => {
+    const ids = layout.flat().filter(isEmptySeat);
+    const nextId = ids.length > 0 ? Math.min(...ids) - 1 : -1;
+    const next = appendMember(layout, nextId);
+    setLayout(next);
+    void save(next);
+  };
+
   const toggleSeat = (memberId: number) => {
     if (seated.includes(memberId)) removeSeat(memberId);
     else addSeat(memberId);
   };
 
-  // 行数の変更は、全員をその行数に振り分け直す
+  // 行数の変更は、全席（メンバー＋空席）をその行数に振り分け直す
   const changeRowCount = (delta: number) => {
     const next = Math.min(Math.max(rowCount + delta, 1), maxRows);
     if (next === rowCount) return;
-    const relaid = distribute(seated, next);
+    const relaid = distribute(totalSeats, next);
     setLayout(relaid);
     void save(relaid);
   };
@@ -532,11 +550,14 @@ export default function SeatingEditor({
           >
             ＋
           </button>
+          <button type="button" className="button-sub" onClick={addEmptySeat}>
+            空席を追加
+          </button>
         </div>
         <span className={`save-status ${status}`}>{statusLabel(status)}</span>
       </div>
 
-      {seated.length === 0 ? (
+      {totalSeats.length === 0 ? (
         <p className="muted">
           この曲にはまだ誰も割り当てられていません。右上の ☰ から参加する人を選んでください。
         </p>
@@ -598,8 +619,9 @@ export default function SeatingEditor({
                           )}
                           <SortableSeat
                             memberId={memberId}
-                            name={nameOf(memberId)}
-                            color={colorOf(memberId)}
+                            name={isEmptySeat(memberId) ? "" : nameOf(memberId)}
+                            color={isEmptySeat(memberId) ? null : colorOf(memberId)}
+                            empty={isEmptySeat(memberId)}
                             index={index}
                             hidden={memberId === landingId}
                             onRemove={removeSeat}
@@ -630,7 +652,11 @@ export default function SeatingEditor({
 
           <DragOverlay dropAnimation={{ duration: LANDING_MS, easing: "ease" }}>
             {activeId !== null ? (
-              <SeatCircle name={nameOf(activeId)} color={colorOf(activeId)} dragging />
+              isEmptySeat(activeId) ? (
+                <SeatCircle name="" empty dragging />
+              ) : (
+                <SeatCircle name={nameOf(activeId)} color={colorOf(activeId)} dragging />
+              )
             ) : null}
           </DragOverlay>
         </DndContext>
