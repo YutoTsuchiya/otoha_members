@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { api, errorMessage } from "../api";
 import { defaultLayout } from "../layout";
 import { useAsyncAction } from "../useAsyncAction";
 import type { EventItem, Member, Song } from "../types";
 import MemberSelector from "./MemberSelector";
+import SortableSong from "./SortableSong";
 
 interface Props {
   eventId: number;
@@ -116,6 +125,34 @@ export default function EventDetail({
       await load();
     });
 
+  const sensors = useSensors(
+    // 5px 動かすまではクリック扱い（曲を開く操作とドラッグを区別する）
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const handleSongDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = songs.findIndex((s) => s.id === active.id);
+    const newIndex = songs.findIndex((s) => s.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const next = arrayMove(songs, oldIndex, newIndex);
+    setSongs(next);
+    void saveSongOrder(next.map((s) => s.id));
+  };
+
+  const saveSongOrder = async (ids: number[]) => {
+    try {
+      await api(`/api/events/${eventId}/songs`, { method: "PUT", body: { ids } });
+      setError(null);
+    } catch (err) {
+      setError(errorMessage(err));
+      await load();
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-head">
@@ -125,7 +162,7 @@ export default function EventDetail({
 
         {editingEventName ? (
           <form
-            className="inline-form grow"
+            className="inline-form"
             onSubmit={(e) => {
               e.preventDefault();
               void renameEvent();
@@ -151,7 +188,7 @@ export default function EventDetail({
             </button>
           </form>
         ) : (
-          <>
+          <div className="page-title-row">
             <h2 className="page-title">{eventName}</h2>
             <div className="item-actions head-actions">
               <button
@@ -168,7 +205,7 @@ export default function EventDetail({
                 削除
               </button>
             </div>
-          </>
+          </div>
         )}
       </div>
 
@@ -213,20 +250,19 @@ export default function EventDetail({
           // メンバー0人のときは上の案内と重なるので出さない
           members.length > 0 && <p className="muted">まだ曲がありません。</p>
         ) : (
-          <ul className="list compact song-list">
-            {songs.map((song) => (
-              <li key={song.id} className="list-item">
-                <button
-                  type="button"
-                  className="item-main song-row"
-                  onClick={() => onOpenSong(song.id, song.name)}
-                >
-                  <span className="item-name">{song.name}</span>
-                  <span className="event-count">{song.rows.flat().length}人</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <DndContext sensors={sensors} onDragEnd={handleSongDragEnd}>
+            <SortableContext items={songs.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              <ul className="list compact song-list">
+                {songs.map((song) => (
+                  <SortableSong
+                    key={song.id}
+                    song={song}
+                    onOpen={() => onOpenSong(song.id, song.name)}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
       </section>
 

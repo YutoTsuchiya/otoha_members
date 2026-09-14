@@ -89,6 +89,10 @@ function almostSame(a: number, b: number): boolean {
  * 持ち上げている席は行の流れから外れているので、数に入れない。
  */
 function measureRows(grid: HTMLElement): RowGeometry[] {
+  // 横位置は白い四角（grid）の左端を基準にした相対座標で持つ。
+  // ドラッグ中に横スクロールが起きても、画面座標のままだと右端の席と
+  // 正しく比べられなくなるため。
+  const gridLeft = grid.getBoundingClientRect().left;
   return [...grid.querySelectorAll<HTMLElement>(".seat-row")].map((row) => {
     const rect = row.getBoundingClientRect();
     // 動いている途中でも着く所を測れるように、動きの分を引いて素の位置にする
@@ -96,7 +100,7 @@ function measureRows(grid: HTMLElement): RowGeometry[] {
       .filter((seat) => !seat.classList.contains("seat-lifted"))
       .map((seat) => {
         const box = seat.getBoundingClientRect();
-        return { left: box.left - transformOffset(seat).x, width: box.width };
+        return { left: box.left - transformOffset(seat).x - gridLeft, width: box.width };
       });
     const centers = boxes.map((box) => box.left + box.width / 2);
     // 1人だけの行は間隔を測れないので、丸の幅と余白から見積もる
@@ -327,8 +331,10 @@ export default function SeatingEditor({
     // 形を測る前（まだドラッグが始まっていない）は判定しない
     if (!rect || geometry.current.length === 0) return;
 
-    // ドラッグしている円の中心で判定する
-    const x = rect.left + rect.width / 2;
+    // ドラッグしている円の中心で判定する。横は measureRows と同じく白い四角
+    // （grid）の左端基準の相対座標に揃え、横スクロールしても右端と正しく比べる。
+    const gridLeft = gridRef.current?.getBoundingClientRect().left ?? 0;
+    const x = rect.left + rect.width / 2 - gridLeft;
     const y = rect.top + rect.height / 2;
 
     // 縦にいちばん近い行
@@ -343,14 +349,23 @@ export default function SeatingEditor({
     });
     if (row < 0) return;
 
-    // 横は「円と円の中間点」で数える。落とし先は全員分の席の位置のどこかで、
-    // その中間点を越えたら隣の席へ移る。中間点を閾値にすれば半ピッチ分の
-    // 遊びができ、左右どちらへ動かしても対称に入れ替わる。
+    // 横の落とし先は、持ち上げた席がこの行にあるかで数え方が変わる。
+    // - 持ち上げた席がある行: 席の位置のどこかに入れ直す。中間点を越えたら隣へ移る
+    //   （半ピッチ分の遊びがあり、左右どちらへ動かしても対称に入れ替わる）。
+    // - 持ち上げた席がない行: 席と席の間に入れる。席の中心を越えたら隣へ移る
+    //   （先頭の左・末尾の右にも置ける）。
     const { centers, pitch } = geometry.current[row];
+    const liftedRow = layout.findIndex((r) => r.includes(Number(event.active.id)));
 
     let index = 0;
-    for (let i = 0; i < centers.length - 1; i++) {
-      if (centers[i] + pitch / 2 < x) index = i + 1;
+    if (row === liftedRow) {
+      for (let i = 0; i < centers.length - 1; i++) {
+        if (centers[i] + pitch / 2 < x) index = i + 1;
+      }
+    } else {
+      for (let i = 0; i < centers.length; i++) {
+        if (centers[i] < x) index = i + 1;
+      }
     }
 
     const current = gapRef.current;
@@ -412,21 +427,23 @@ export default function SeatingEditor({
         <button type="button" className="button-sub" onClick={onBack}>
           ← イベントへ
         </button>
-        <h2 className="page-title">{songName} の座席表</h2>
-        <button
-          type="button"
-          className="hamburger head-actions"
-          aria-label="曲の設定を開く"
-          aria-expanded={panelOpen}
-          onClick={() => {
-            setNameInput(songName);
-            setPanelOpen((open) => !open);
-          }}
-        >
-          <span />
-          <span />
-          <span />
-        </button>
+        <div className="page-title-row">
+          <h2 className="page-title">{songName}</h2>
+          <button
+            type="button"
+            className="hamburger head-actions"
+            aria-label="曲の設定を開く"
+            aria-expanded={panelOpen}
+            onClick={() => {
+              setNameInput(songName);
+              setPanelOpen((open) => !open);
+            }}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        </div>
       </div>
 
       {error && <p className="error-text">{error}</p>}

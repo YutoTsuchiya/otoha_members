@@ -143,6 +143,23 @@ export async function songRowsFor(
   return map;
 }
 
+/** イベントの曲を表示順（position, id）で返し、各行の席も添える。 */
+export async function listSongsWithRows(
+  db: D1Database,
+  eventId: number,
+): Promise<(SongRow & { rows: number[][] })[]> {
+  const { results } = await db
+    .prepare("SELECT id, event_id, name, created_at FROM songs WHERE event_id = ? ORDER BY position, id")
+    .bind(eventId)
+    .all<SongRow>();
+
+  const rowsBySong = await songRowsFor(
+    db,
+    results.map((song) => song.id),
+  );
+  return results.map((song) => ({ ...song, rows: rowsBySong.get(song.id) ?? [] }));
+}
+
 function groupRows(rows: { row_index: number; member_id: number }[]): number[][] {
   const layout: number[][] = [];
   for (const row of rows) {

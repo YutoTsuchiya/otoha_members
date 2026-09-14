@@ -76,13 +76,26 @@ h3 {
 
 .page-head {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* 戻るボタンの下にタイトルを置き、その横にアクションを並べる行 */
+.page-title-row {
+  display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
+}
+
+/* 編集フォームはページ見出しの位置で幅いっぱいに広げる */
+.page-head .inline-form {
+  width: 100%;
 }
 
 .page-title {
-  font-size: 20px;
+  font-size: 26px;
 }
 
 /* ---------- 部品 ---------- */
@@ -275,6 +288,11 @@ button:focus-visible {
 /* 曲の一覧もセル全体をクリックできるようにする */
 .song-list .list-item {
   padding: 0;
+}
+
+/* ドラッグ中の曲行は半透明にして「持ち上げ中」を表す */
+.song-dragging {
+  opacity: 0.6;
 }
 
 .song-row {

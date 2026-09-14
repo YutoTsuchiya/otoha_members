@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS songs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   name       TEXT NOT NULL,
+  -- イベント内での表示順。並び替えで振り直す（0 始まり）。
+  position   INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
