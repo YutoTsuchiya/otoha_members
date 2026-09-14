@@ -4,9 +4,11 @@
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS events (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  name       TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  -- 閲覧用URLの共有トークン。未設定（NULL）なら共有なし。
+  share_token TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS members (
@@ -20,8 +22,10 @@ CREATE TABLE IF NOT EXISTS songs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   event_id   INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   name       TEXT NOT NULL,
-  -- イベント内での表示順。並び替えで振り直す（0 始まり）。
+  -- 演奏内での表示順。並び替えで振り直す（0 始まり）。
   position   INTEGER NOT NULL DEFAULT 0,
+  -- 色分けのパート一覧（[{color, name}, ...] の JSON 配列）。
+  group_names TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -34,6 +38,8 @@ CREATE TABLE IF NOT EXISTS song_members (
   member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   row_index INTEGER NOT NULL,
   position  INTEGER NOT NULL,
+  -- 色分け（red/blue/yellow、未割当は NULL）
+  color     TEXT,
   UNIQUE (song_id, member_id)
 );
 

@@ -26,6 +26,38 @@ export interface SongRow {
   event_id: number;
   name: string;
   created_at: string;
+  /** 3色のパート名を JSON 文字列で保持。 */
+  group_names?: string;
+}
+
+/** 色分けの1パート（色キーと表示名）。 */
+export interface Part {
+  color: string;
+  name: string;
+}
+
+/** 曲の席と、メンバーごとの色。 */
+export interface SongSeats {
+  rows: number[][];
+  colors: Record<number, string>;
+}
+
+/** group_names の JSON 文字列をパートの配列に変換する（不正は空配列に）。 */
+export function parseParts(raw: string | null | undefined): Part[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((p): p is Record<string, unknown> => typeof p === "object" && p !== null)
+      .map((p) => ({
+        color: typeof p.color === "string" ? p.color : "",
+        name: typeof p.name === "string" ? p.name : "",
+      }))
+      .filter((p) => p.color !== "");
+  } catch {
+    return [];
+  }
 }
 
 export function json(data: unknown, status = 200): Response {
@@ -34,6 +66,13 @@ export function json(data: unknown, status = 200): Response {
 
 export function jsonError(message: string, status: number): Response {
   return Response.json({ error: message }, { status });
+}
+
+/** 閲覧用URLの共有トークンを生成する（ランダムな16進文字列）。 */
+export function randomToken(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** パスパラメータの :id を数値で取り出す。不正なら null。 */
@@ -61,7 +100,7 @@ export async function readName(request: Request): Promise<string | null> {
 }
 
 /**
- * 参加者IDが、整数で・重複がなく・全員そのイベントに所属しているかを確かめる。
+ * 参加者IDが、整数で・重複がなく・全員その演奏に所属しているかを確かめる。
  * 問題があればエラーメッセージ、問題なければ null を返す。
  */
 async function validateMemberIds(
@@ -80,7 +119,7 @@ async function validateMemberIds(
     .first<{ count: number }>();
 
   if (!row || row.count !== ids.length) {
-    return "このイベントに登録されていない参加者が含まれています";
+    return "この演奏に登録されていない参加者が含まれています";
   }
   return null;
 }
@@ -104,63 +143,77 @@ export async function validateRows(
   return validateMemberIds(db, eventId, ids);
 }
 
-/** 曲の席を行ごとの配列で返す。 */
-export async function songRows(db: D1Database, songId: number): Promise<number[][]> {
-  const { results } = await db
-    .prepare(
-      "SELECT row_index, member_id FROM song_members WHERE song_id = ? ORDER BY row_index, position",
-    )
-    .bind(songId)
-    .all<{ row_index: number; member_id: number }>();
-
-  return groupRows(results);
+/** song_members の1行。 */
+interface SeatRow {
+  row_index: number;
+  member_id: number;
+  color: string | null;
 }
 
-/** 複数曲分の席を行ごとの配列でまとめて取得する。 */
+/** 曲の席を行ごとの配列と、メンバーごとの色を返す。 */
+export async function songRows(db: D1Database, songId: number): Promise<SongSeats> {
+  const { results } = await db
+    .prepare(
+      "SELECT row_index, member_id, color FROM song_members WHERE song_id = ? ORDER BY row_index, position",
+    )
+    .bind(songId)
+    .all<SeatRow>();
+
+  return { rows: groupRows(results), colors: colorsFrom(results) };
+}
+
+/** 複数曲分の席と色をまとめて取得する。 */
 export async function songRowsFor(
   db: D1Database,
   songIds: number[],
-): Promise<Map<number, number[][]>> {
-  const map = new Map<number, number[][]>(songIds.map((id) => [id, []]));
+): Promise<Map<number, SongSeats>> {
+  const map = new Map<number, SongSeats>();
+  for (const songId of songIds) map.set(songId, { rows: [], colors: {} });
   if (songIds.length === 0) return map;
 
   const placeholders = songIds.map(() => "?").join(",");
   const { results } = await db
     .prepare(
-      `SELECT song_id, row_index, member_id FROM song_members
+      `SELECT song_id, row_index, member_id, color FROM song_members
        WHERE song_id IN (${placeholders})
        ORDER BY song_id, row_index, position`,
     )
     .bind(...songIds)
-    .all<{ song_id: number; row_index: number; member_id: number }>();
+    .all<SeatRow & { song_id: number }>();
 
   for (const songId of songIds) {
-    map.set(
-      songId,
-      groupRows(results.filter((row) => row.song_id === songId)),
-    );
+    const rows = results.filter((row) => row.song_id === songId);
+    map.set(songId, { rows: groupRows(rows), colors: colorsFrom(rows) });
   }
   return map;
 }
 
-/** イベントの曲を表示順（position, id）で返し、各行の席も添える。 */
+/** 演奏の曲を表示順（position, id）で返し、各行の席と色・パート名も添える。 */
 export async function listSongsWithRows(
   db: D1Database,
   eventId: number,
-): Promise<(SongRow & { rows: number[][] })[]> {
+): Promise<(SongRow & { rows: number[][]; colors: Record<number, string>; parts: Part[] })[]> {
   const { results } = await db
-    .prepare("SELECT id, event_id, name, created_at FROM songs WHERE event_id = ? ORDER BY position, id")
+    .prepare("SELECT id, event_id, name, created_at, group_names FROM songs WHERE event_id = ? ORDER BY position, id")
     .bind(eventId)
     .all<SongRow>();
 
-  const rowsBySong = await songRowsFor(
+  const seatsBySong = await songRowsFor(
     db,
     results.map((song) => song.id),
   );
-  return results.map((song) => ({ ...song, rows: rowsBySong.get(song.id) ?? [] }));
+  return results.map((song) => {
+    const seats = seatsBySong.get(song.id) ?? { rows: [], colors: {} };
+    return {
+      ...song,
+      rows: seats.rows,
+      colors: seats.colors,
+      parts: parseParts(song.group_names),
+    };
+  });
 }
 
-function groupRows(rows: { row_index: number; member_id: number }[]): number[][] {
+function groupRows(rows: SeatRow[]): number[][] {
   const layout: number[][] = [];
   for (const row of rows) {
     while (layout.length <= row.row_index) layout.push([]);
@@ -169,23 +222,64 @@ function groupRows(rows: { row_index: number; member_id: number }[]): number[][]
   return layout.filter((line) => line.length > 0);
 }
 
-/** 曲の席を丸ごと置き換える（全置換なので何度実行しても同じ結果になる）。 */
+function colorsFrom(rows: SeatRow[]): Record<number, string> {
+  const colors: Record<number, string> = {};
+  for (const row of rows) {
+    if (row.color) colors[row.member_id] = row.color;
+  }
+  return colors;
+}
+
+/** 曲の席を丸ごと置き換える（全置換なので何度実行しても同じ結果になる）。色は保持する。 */
 export async function replaceSongSeats(
   db: D1Database,
   songId: number,
   rows: number[][],
 ): Promise<void> {
+  // 並び替えでも色を保持できるよう、既存の色を先に控えておく
+  const existing = await db
+    .prepare("SELECT member_id, color FROM song_members WHERE song_id = ?")
+    .bind(songId)
+    .all<{ member_id: number; color: string | null }>();
+  const colorByMember = new Map(existing.results.map((r) => [r.member_id, r.color]));
+
   const statements = [
     db.prepare("DELETE FROM song_members WHERE song_id = ?").bind(songId),
     ...rows.flatMap((row, rowIndex) =>
       row.map((memberId, position) =>
         db
           .prepare(
-            "INSERT INTO song_members (song_id, member_id, row_index, position) VALUES (?, ?, ?, ?)",
+            "INSERT INTO song_members (song_id, member_id, row_index, position, color) VALUES (?, ?, ?, ?, ?)",
           )
-          .bind(songId, memberId, rowIndex, position),
+          .bind(songId, memberId, rowIndex, position, colorByMember.get(memberId) ?? null),
       ),
     ),
   ];
   await db.batch(statements);
+}
+
+/** パート一覧（色と名前）を更新する。 */
+export async function updateSongParts(
+  db: D1Database,
+  songId: number,
+  parts: Part[],
+): Promise<void> {
+  await db
+    .prepare("UPDATE songs SET group_names = ? WHERE id = ?")
+    .bind(JSON.stringify(parts), songId)
+    .run();
+}
+
+/** メンバーごとの色を更新する（未割当は null）。 */
+export async function updateSongColors(
+  db: D1Database,
+  songId: number,
+  colors: Record<number, string | null>,
+): Promise<void> {
+  const statements = Object.entries(colors).map(([memberId, color]) =>
+    db
+      .prepare("UPDATE song_members SET color = ? WHERE song_id = ? AND member_id = ?")
+      .bind(color ?? null, songId, Number(memberId)),
+  );
+  if (statements.length > 0) await db.batch(statements);
 }

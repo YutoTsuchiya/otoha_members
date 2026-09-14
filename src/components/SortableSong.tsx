@@ -26,7 +26,10 @@ export default function SortableSong({ song, onOpen }: Props) {
     >
       <button type="button" className="item-main song-row" onClick={onOpen}>
         <span className="item-name">{song.name}</span>
-        <span className="event-count">{song.rows.flat().length}人</span>
+        <span className="row-meta">
+          <span className="event-count">{song.rows.flat().length}人</span>
+          <span className="row-arrow" aria-hidden="true">→</span>
+        </span>
       </button>
     </li>
   );

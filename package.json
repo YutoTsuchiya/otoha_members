@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "types": "wrangler types",
     "typecheck": "tsc -b && tsc -p functions/tsconfig.json",
-    "cf:dev": "wrangler pages dev",
+    "cf:dev": "wrangler pages dev --binding AUTH_PASSWORD=test1234 --binding AUTH_SECRET=dev-secret",
     "db:local": "wrangler d1 execute otoha-members --local --file=./schema.sql",
     "db:remote": "wrangler d1 execute otoha-members --remote --file=./schema.sql",
     "deploy": "npm run build && wrangler pages deploy"

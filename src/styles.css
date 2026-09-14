@@ -45,6 +45,10 @@ h3 {
   position: sticky;
   top: 0;
   z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 12px 20px;
   background: #fff;
   border-bottom: 1px solid var(--border);
@@ -68,10 +72,35 @@ h3 {
   padding: 20px;
 }
 
+/* ---------- ログイン ---------- */
+
+.login {
+  display: flex;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.login-title {
+  margin: 0;
+  font-size: 20px;
+}
+
 .page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
 .page-head {
@@ -247,7 +276,7 @@ button:focus-visible {
   margin-left: auto;
 }
 
-/* ---------- イベント一覧 ---------- */
+/* ---------- 演奏一覧 ---------- */
 
 /* ＋ボタンに隠れないよう下に余白を取る */
 .page-fab {
@@ -283,6 +312,17 @@ button:focus-visible {
   color: var(--muted);
   font-size: 15px;
   white-space: nowrap;
+}
+
+/* 一覧セル右側の「人数 ＋ →」のまとまり */
+.row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.row-arrow {
+  color: var(--muted);
 }
 
 /* 曲の一覧もセル全体をクリックできるようにする */
@@ -438,7 +478,7 @@ button:focus-visible {
 }
 
 .nav-cell:hover {
-  border-color: var(--accent);
+  background: #f4f4f5;
 }
 
 .nav-cell-label {
@@ -770,10 +810,10 @@ button:focus-visible {
   overflow-wrap: anywhere;
   text-align: center;
   line-height: 1.25;
-  border: 2px solid var(--accent);
+  border: 2px solid var(--border);
   border-radius: 50%;
-  background: var(--accent-weak);
-  color: var(--accent-text);
+  background: #fafafa;
+  color: var(--text);
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
@@ -828,4 +868,228 @@ button:focus-visible {
   .app-main {
     padding: 12px;
   }
+}
+
+/* ---------- 座席表: 色分け・上手下手・凡例 ---------- */
+
+.seat-circle.red {
+  border-color: #ef4444;
+  background: #fee2e2;
+  color: #991b1b;
+}
+.seat-circle.blue {
+  border-color: #2563eb;
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+.seat-circle.yellow {
+  border-color: #ca8a04;
+  background: #fef9c3;
+  color: #713f12;
+}
+.seat-circle.green {
+  border-color: #16a34a;
+  background: #dcfce7;
+  color: #14532d;
+}
+.seat-circle.purple {
+  border-color: #9333ea;
+  background: #f3e8ff;
+  color: #4c1d95;
+}
+.seat-circle.orange {
+  border-color: #ea580c;
+  background: #ffedd5;
+  color: #7c2d12;
+}
+.seat-circle.cyan {
+  border-color: #0891b2;
+  background: #cffafe;
+  color: #164e63;
+}
+.seat-circle.pink {
+  border-color: #db2777;
+  background: #fce7f3;
+  color: #831843;
+}
+
+/* 観客の表記（白いボックスの最上部） */
+.seat-audience {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.seat-audience-line {
+  align-self: stretch;
+  border-top: 1px solid var(--border);
+}
+
+/* 上手（左）・下手（右）の表記 */
+.seat-stage {
+  align-self: stretch;
+  display: flex;
+  justify-content: space-between;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* 凡例 */
+.seat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  margin-top: 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: none;
+}
+.legend-dot-red {
+  background: #ef4444;
+}
+.legend-dot-blue {
+  background: #2563eb;
+}
+.legend-dot-yellow {
+  background: #eab308;
+}
+.legend-dot-green {
+  background: #16a34a;
+}
+.legend-dot-purple {
+  background: #9333ea;
+}
+.legend-dot-orange {
+  background: #ea580c;
+}
+.legend-dot-cyan {
+  background: #0891b2;
+}
+.legend-dot-pink {
+  background: #db2777;
+}
+
+/* パート名の入力行（曲の設定パネル） */
+.group-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.group-name-row input {
+  flex: 1;
+  min-width: 0;
+}
+.part-remove {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+}
+.part-add {
+  align-self: flex-end;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* 参加者リストの色スウォッチ */
+.member-option-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.member-option-row .member-option {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+.member-color {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  flex: none;
+}
+.member-color-red {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+.member-color-blue {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+.member-color-yellow {
+  background: #eab308;
+  border-color: #eab308;
+}
+.member-color-green {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+.member-color-purple {
+  background: #9333ea;
+  border-color: #9333ea;
+}
+.member-color-orange {
+  background: #ea580c;
+  border-color: #ea580c;
+}
+.member-color-cyan {
+  background: #0891b2;
+  border-color: #0891b2;
+}
+.member-color-pink {
+  background: #db2777;
+  border-color: #db2777;
+}
+
+/* 共有URLモーダル: URL入力とコピーを横並びに */
+.share-url-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.share-url-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 新しい演奏モーダル: 既存の演奏をコピー */
+.copy-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.copy-section .list {
+  max-height: 140px;
+  overflow-y: auto;
 }

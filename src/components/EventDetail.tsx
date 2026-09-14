@@ -21,9 +21,9 @@ interface Props {
   onOpenSong: (songId: number, songName: string) => void;
   /** 参加者一覧へ移動 */
   onOpenMembers: () => void;
-  /** イベント名を変えたとき（画面の表示を追従させる） */
+  /** 演奏名を変えたとき（画面の表示を追従させる） */
   onRenamed: (name: string) => void;
-  /** イベントを削除したとき */
+  /** 演奏を削除したとき */
   onDeleted: () => void;
 }
 
@@ -46,17 +46,22 @@ export default function EventDetail({
   const [newSongName, setNewSongName] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [songDialogOpen, setSongDialogOpen] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
   const { error, setError, busy, run } = useAsyncAction();
 
   const load = useCallback(async () => {
     try {
-      const [memberList, songList] = await Promise.all([
+      const [memberList, songList, share] = await Promise.all([
         api<Member[]>(`/api/events/${eventId}/members`),
         api<Song[]>(`/api/events/${eventId}/songs`),
+        api<{ token: string | null }>(`/api/events/${eventId}/share`),
       ]);
       setMembers(memberList);
       setSongs(songList);
+      setShareToken(share.token);
       setError(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -79,6 +84,16 @@ export default function EventDetail({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [songDialogOpen]);
 
+  // 共有URLのダイアログも Esc で閉じる
+  useEffect(() => {
+    if (!shareDialogOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShareDialogOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [shareDialogOpen]);
+
   const renameEvent = () =>
     run(async () => {
       const name = eventNameInput.trim();
@@ -96,6 +111,32 @@ export default function EventDetail({
     void run(async () => {
       await api(`/api/events/${eventId}`, { method: "DELETE" });
       onDeleted();
+    });
+  };
+
+  const shareUrl = (token: string) => `${window.location.origin}/?share=${token}`;
+
+  const copyShare = async (token: string) => {
+    try {
+      await navigator.clipboard.writeText(shareUrl(token));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("URLをコピーできませんでした");
+    }
+  };
+
+  const issueShare = () =>
+    run(async () => {
+      const res = await api<{ token: string }>(`/api/events/${eventId}/share`, { method: "POST" });
+      setShareToken(res.token);
+    });
+
+  const revokeShare = () => {
+    if (!confirm("共有URLを無効化しますか？\n無効化すると、このURLでは閲覧できなくなります。")) return;
+    void run(async () => {
+      await api(`/api/events/${eventId}/share`, { method: "DELETE" });
+      setShareToken(null);
     });
   };
 
@@ -157,7 +198,7 @@ export default function EventDetail({
     <div className="page">
       <div className="page-head">
         <button type="button" className="button-sub" onClick={onBack}>
-          ← イベント一覧
+          ← 演奏一覧
         </button>
 
         {editingEventName ? (
@@ -191,6 +232,9 @@ export default function EventDetail({
           <div className="page-title-row">
             <h2 className="page-title">{eventName}</h2>
             <div className="item-actions head-actions">
+              <button type="button" className="button-sub" onClick={() => setShareDialogOpen(true)}>
+                共有URL
+              </button>
               <button
                 type="button"
                 className="button-sub"
@@ -324,6 +368,64 @@ export default function EventDetail({
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {shareDialogOpen && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShareDialogOpen(false);
+          }}
+        >
+          <div className="modal modal-wide">
+            <h2>共有URL</h2>
+            {shareToken ? (
+              <>
+                <div className="share-url-row">
+                  <input readOnly value={shareUrl(shareToken)} onFocus={(e) => e.target.select()} />
+                  <button
+                    type="button"
+                    className="button-primary"
+                    onClick={() => void copyShare(shareToken)}
+                  >
+                    {copied ? "コピーしました" : "コピー"}
+                  </button>
+                </div>
+                <p className="muted">
+                  このURLを開くと、パスワードなしで曲一覧と座席表を閲覧できます。
+                </p>
+                <div className="modal-actions">
+                  <button type="button" className="button-danger" onClick={revokeShare}>
+                    無効化
+                  </button>
+                  <button
+                    type="button"
+                    className="button-sub"
+                    onClick={() => setShareDialogOpen(false)}
+                  >
+                    閉じる
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="muted">共有URLを発行すると、パスワードなしで閲覧できるリンクが作れます。</p>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="button-sub"
+                    onClick={() => setShareDialogOpen(false)}
+                  >
+                    閉じる
+                  </button>
+                  <button type="button" className="button-primary" onClick={issueShare}>
+                    発行
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

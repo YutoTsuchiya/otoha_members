@@ -6,30 +6,38 @@ import {
   json,
   jsonError,
   listSongsWithRows,
+  parseParts,
   readJson,
   replaceSongSeats,
   validateRows,
   type SongRow,
 } from "../../../../shared/api-helpers.ts";
+import { requireAuth } from "../../../../shared/auth.ts";
 
 export const onRequestGet: PagesFunction<Env> = async (ctx) => {
+  const denied = await requireAuth(ctx);
+  if (denied) return denied;
+
   const eventId = idParam(ctx.params);
-  if (eventId === null) return jsonError("イベントIDが不正です", 400);
+  if (eventId === null) return jsonError("演奏IDが不正です", 400);
 
   const db = ctx.env.DB;
   const event = await db.prepare("SELECT id FROM events WHERE id = ?").bind(eventId).first();
-  if (!event) return jsonError("イベントが見つかりません", 404);
+  if (!event) return jsonError("演奏が見つかりません", 404);
 
   return json(await listSongsWithRows(db, eventId));
 };
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+  const denied = await requireAuth(ctx);
+  if (denied) return denied;
+
   const eventId = idParam(ctx.params);
-  if (eventId === null) return jsonError("イベントIDが不正です", 400);
+  if (eventId === null) return jsonError("演奏IDが不正です", 400);
 
   const db = ctx.env.DB;
   const event = await db.prepare("SELECT id FROM events WHERE id = ?").bind(eventId).first();
-  if (!event) return jsonError("イベントが見つかりません", 404);
+  if (!event) return jsonError("演奏が見つかりません", 404);
 
   const body = await readJson(ctx.request);
   const name = typeof body?.name === "string" ? body.name.trim() : "";
@@ -54,20 +62,27 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   await replaceSongSeats(db, songId, layout);
 
   const row = await db
-    .prepare("SELECT id, event_id, name, created_at FROM songs WHERE id = ?")
+    .prepare("SELECT id, event_id, name, created_at, group_names FROM songs WHERE id = ?")
     .bind(songId)
     .first<SongRow>();
+  if (!row) return jsonError("曲が見つかりません", 500);
 
-  return json({ ...row, rows: layout }, 201);
+  return json(
+    { ...row, rows: layout, colors: {}, parts: parseParts(row.group_names) },
+    201,
+  );
 };
 
 export const onRequestPut: PagesFunction<Env> = async (ctx) => {
+  const denied = await requireAuth(ctx);
+  if (denied) return denied;
+
   const eventId = idParam(ctx.params);
-  if (eventId === null) return jsonError("イベントIDが不正です", 400);
+  if (eventId === null) return jsonError("演奏IDが不正です", 400);
 
   const db = ctx.env.DB;
   const event = await db.prepare("SELECT id FROM events WHERE id = ?").bind(eventId).first();
-  if (!event) return jsonError("イベントが見つかりません", 404);
+  if (!event) return jsonError("演奏が見つかりません", 404);
 
   const body = await readJson(ctx.request);
   const ids = body?.ids;
@@ -80,13 +95,13 @@ export const onRequestPut: PagesFunction<Env> = async (ctx) => {
     return jsonError("同じ曲が複数回指定されています", 400);
   }
 
-  // 指定された曲が、このイベントの全曲とちょうど一致するか
+  // 指定された曲が、この演奏の全曲とちょうど一致するか
   const total = await db
     .prepare("SELECT COUNT(*) AS count FROM songs WHERE event_id = ?")
     .bind(eventId)
     .first<{ count: number }>();
   if (!total || songIds.length !== total.count) {
-    return jsonError("イベントの全曲を指定してください", 400);
+    return jsonError("演奏の全曲を指定してください", 400);
   }
 
   if (songIds.length > 0) {
@@ -96,7 +111,7 @@ export const onRequestPut: PagesFunction<Env> = async (ctx) => {
       .bind(eventId, ...songIds)
       .first<{ count: number }>();
     if (!row || row.count !== songIds.length) {
-      return jsonError("このイベントに存在しない曲が含まれています", 400);
+      return jsonError("この演奏に存在しない曲が含まれています", 400);
     }
   }
 

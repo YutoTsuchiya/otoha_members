@@ -62,7 +62,7 @@ export default function MemberList({ eventId, eventName, onBack }: Props) {
     <div className="page">
       <div className="page-head">
         <button type="button" className="button-sub" onClick={onBack}>
-          ← イベントへ
+          ← {eventName}
         </button>
         <h2 className="page-title">参加者（{members.length}人）</h2>
       </div>

@@ -22,12 +22,15 @@ import {
   sameLayout,
 } from "../layout";
 import { useAsyncAction } from "../useAsyncAction";
-import type { Member, Song } from "../types";
+import { useSeatSize } from "../useSeatSize";
+import type { Member, Part, Song } from "../types";
+import { COLOR_PALETTE } from "../colors";
 import MemberSelector from "./MemberSelector";
 import SortableSeat, { SeatCircle } from "./SortableSeat";
 
 interface Props {
   eventId: number;
+  eventName: string;
   songId: number;
   songName: string;
   onBack: () => void;
@@ -124,6 +127,7 @@ function statusLabel(status: SaveStatus): string {
 
 export default function SeatingEditor({
   eventId,
+  eventName,
   songId,
   songName,
   onBack,
@@ -140,6 +144,8 @@ export default function SeatingEditor({
   const [gap, setGap] = useState<Gap | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [nameInput, setNameInput] = useState(songName);
+  const [parts, setParts] = useState<Part[]>([]);
+  const [colors, setColors] = useState<Record<number, string>>({});
 
   const gridRef = useRef<HTMLDivElement>(null);
   // 前回の配置での素の位置（白い四角を基準にした相対座標）。
@@ -150,6 +156,7 @@ export default function SeatingEditor({
   const landingTimer = useRef<number | null>(null);
   const saveSeq = useRef(0);
   const { error, setError, busy, run } = useAsyncAction();
+  const { seatSize, scrollRef } = useSeatSize(layout);
 
   const load = useCallback(async () => {
     try {
@@ -159,6 +166,8 @@ export default function SeatingEditor({
       ]);
       setMembers(memberList);
       setLayout(song.rows);
+      setParts(song.parts.length > 0 ? song.parts : [{ color: "red", name: "" }, { color: "blue", name: "" }]);
+      setColors(song.colors);
       setError(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -253,6 +262,7 @@ export default function SeatingEditor({
 
   const nameById = useMemo(() => new Map(members.map((m) => [m.id, m.name])), [members]);
   const nameOf = (id: number) => nameById.get(id) ?? "?";
+  const colorOf = (id: number) => colors[id] ?? null;
 
   const seated = useMemo(() => layout.flat(), [layout]);
   const rowCount = layout.length;
@@ -304,6 +314,53 @@ export default function SeatingEditor({
       await api(`/api/songs/${songId}`, { method: "DELETE" });
       onDeleted();
     });
+  };
+
+  // 色分け（パート一覧とメンバーごとの色）を保存する
+  const saveParts = (nextParts: Part[], nextColors: Record<number, string>) => {
+    void api(`/api/songs/${songId}`, {
+      method: "PATCH",
+      body: { parts: nextParts, colors: nextColors },
+    })
+      .then(() => setError(null))
+      .catch((err) => setError(errorMessage(err)));
+  };
+
+  const changeColor = (memberId: number, color: string | null) => {
+    const next = { ...colors };
+    if (color) next[memberId] = color;
+    else delete next[memberId];
+    setColors(next);
+    saveParts(parts, next);
+  };
+
+  const changePartName = (color: string, name: string) => {
+    setParts((list) => list.map((p) => (p.color === color ? { ...p, name } : p)));
+  };
+
+  const addPart = () => {
+    const used = new Set(parts.map((p) => p.color));
+    const nextColor = COLOR_PALETTE.find((c) => !used.has(c));
+    if (!nextColor) return;
+    const next = [...parts, { color: nextColor, name: "" }];
+    setParts(next);
+    saveParts(next, colors);
+  };
+
+  const removePart = (color: string) => {
+    const next = parts.filter((p) => p.color !== color);
+    setParts(next);
+    // その色に割り当てられていたメンバーの色も外す
+    const nextColors = { ...colors };
+    for (const [memberId, c] of Object.entries(nextColors)) {
+      if (c === color) delete nextColors[Number(memberId)];
+    }
+    setColors(nextColors);
+    saveParts(next, nextColors);
+  };
+
+  const commitParts = () => {
+    saveParts(parts, colors);
   };
 
   const sensors = useSensors(
@@ -399,6 +456,12 @@ export default function SeatingEditor({
     const next = removeMember(layout, memberId);
     setLayout(next);
     void save(next);
+    // 席から外れた人の色も状態から外す（DB側は replaceSongSeats で消える）
+    setColors((current) => {
+      const nextColors = { ...current };
+      delete nextColors[memberId];
+      return nextColors;
+    });
   };
 
   const addSeat = (memberId: number) => {
@@ -425,7 +488,7 @@ export default function SeatingEditor({
     <div className="page">
       <div className="page-head">
         <button type="button" className="button-sub" onClick={onBack}>
-          ← イベントへ
+          ← {eventName}
         </button>
         <div className="page-title-row">
           <h2 className="page-title">{songName}</h2>
@@ -488,9 +551,23 @@ export default function SeatingEditor({
             updateGap(null);
           }}
         >
-          <div className="seat-grid-scroll">
+          <div className="seat-grid-scroll" ref={scrollRef}>
             {/* この白い四角の中だけが配る範囲 */}
-            <div className="seat-grid" ref={gridRef}>
+            <div
+              className="seat-grid"
+              ref={gridRef}
+              style={{ "--seat-size": `${seatSize}px` } as CSSProperties}
+            >
+              <div className="seat-audience" aria-hidden="true">
+                <span>客席</span>
+                <span className="seat-audience-line" />
+              </div>
+
+              <div className="seat-stage" aria-hidden="true">
+                <span>上手</span>
+                <span>下手</span>
+              </div>
+
               {layout.map((row, rowIndex) => {
                 // 持ち上げている人は行の流れから外れるので、その分を詰めて数える
                 const liftedIndex = activeId === null ? -1 : row.indexOf(activeId);
@@ -522,6 +599,7 @@ export default function SeatingEditor({
                           <SortableSeat
                             memberId={memberId}
                             name={nameOf(memberId)}
+                            color={colorOf(memberId)}
                             index={index}
                             hidden={memberId === landingId}
                             onRemove={removeSeat}
@@ -536,11 +614,24 @@ export default function SeatingEditor({
                   </div>
                 );
               })}
+
+              {parts.some((p) => p.name) && (
+                <div className="seat-legend">
+                  {parts.filter((p) => p.name).map((part) => (
+                    <span key={part.color} className="legend-item">
+                      <span className={`legend-dot legend-dot-${part.color}`} aria-hidden="true" />
+                      {part.name}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           <DragOverlay dropAnimation={{ duration: LANDING_MS, easing: "ease" }}>
-            {activeId !== null ? <SeatCircle name={nameOf(activeId)} dragging /> : null}
+            {activeId !== null ? (
+              <SeatCircle name={nameOf(activeId)} color={colorOf(activeId)} dragging />
+            ) : null}
           </DragOverlay>
         </DndContext>
       )}
@@ -581,12 +672,47 @@ export default function SeatingEditor({
               </form>
             </section>
 
+            <section className="panel-section">
+              <h4 className="panel-section-title">パート（色分け）</h4>
+              {parts.map((part) => (
+                <div key={part.color} className="group-name-row">
+                  <span className={`legend-dot legend-dot-${part.color}`} aria-hidden="true" />
+                  <input
+                    value={part.name}
+                    onChange={(e) => changePartName(part.color, e.target.value)}
+                    onBlur={commitParts}
+                    placeholder="パート名"
+                  />
+                  <button
+                    type="button"
+                    className="part-remove"
+                    aria-label="このパートを削除"
+                    onClick={() => removePart(part.color)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {COLOR_PALETTE.some((c) => !parts.some((p) => p.color === c)) && (
+                <button type="button" className="part-add" onClick={addPart}>
+                  追加
+                </button>
+              )}
+            </section>
+
             <section className="panel-section panel-section-fill">
               <h4 className="panel-section-title">参加する人（{seated.length}人）</h4>
               {members.length === 0 ? (
-                <p className="muted">このイベントにはまだ参加者がいません。</p>
+                <p className="muted">この演奏にはまだ参加者がいません。</p>
               ) : (
-                <MemberSelector members={members} selectedIds={selectedIds} onToggle={toggleSeat} />
+                <MemberSelector
+                  members={members}
+                  selectedIds={selectedIds}
+                  onToggle={toggleSeat}
+                  colorOrder={parts.map((p) => p.color)}
+                  colors={colors}
+                  onColorChange={changeColor}
+                />
               )}
             </section>
 

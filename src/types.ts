@@ -17,6 +17,12 @@ export interface Member {
   created_at: string;
 }
 
+/** 色分けの1パート（色キーと表示名）。 */
+export interface Part {
+  color: string;
+  name: string;
+}
+
 export interface Song {
   id: number;
   event_id: number;
@@ -24,6 +30,17 @@ export interface Song {
   created_at: string;
   /** 席の配置。行ごとの参加者IDで、行の人数は固定ではない。 */
   rows: number[][];
+  /** 色分けのパート一覧（例: 赤=Aパート）。並び順に表示。 */
+  parts: Part[];
+  /** メンバーIDごとの色キー。未割当のメンバーは含まれない。 */
+  colors: Record<number, string>;
+}
+
+/** 閲覧用URL（共有リンク）が返すデータ。 */
+export interface ShareData {
+  event: { id: number; name: string };
+  members: Member[];
+  songs: Song[];
 }
 
 export type View =

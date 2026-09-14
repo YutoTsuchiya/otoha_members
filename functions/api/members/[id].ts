@@ -1,8 +1,12 @@
 // PATCH  /api/members/:id  参加者の名前を変更
 // DELETE /api/members/:id  参加者を削除（各曲の席からも外れるが、他の人の席順は変えない）
 import { idParam, json, jsonError, readName, type MemberRow } from "../../../shared/api-helpers.ts";
+import { requireAuth } from "../../../shared/auth.ts";
 
 export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
+  const denied = await requireAuth(ctx);
+  if (denied) return denied;
+
   const id = idParam(ctx.params);
   if (id === null) return jsonError("参加者IDが不正です", 400);
 
@@ -23,6 +27,9 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
 };
 
 export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
+  const denied = await requireAuth(ctx);
+  if (denied) return denied;
+
   const id = idParam(ctx.params);
   if (id === null) return jsonError("参加者IDが不正です", 400);
 

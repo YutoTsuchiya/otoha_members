@@ -7,8 +7,12 @@ import {
   replaceSongSeats,
   validateRows,
 } from "../../../../shared/api-helpers.ts";
+import { requireAuth } from "../../../../shared/auth.ts";
 
 export const onRequestPut: PagesFunction<Env> = async (ctx) => {
+  const denied = await requireAuth(ctx);
+  if (denied) return denied;
+
   const songId = idParam(ctx.params);
   if (songId === null) return jsonError("曲IDが不正です", 400);
 

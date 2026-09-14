@@ -5,6 +5,13 @@ interface RequestOptions {
   body?: unknown;
 }
 
+let onUnauthorized: (() => void) | null = null;
+
+/** 401 が返ったときに呼ぶコールバックを登録する（ログイン画面へ戻すため） */
+export function setOnUnauthorized(fn: () => void): void {
+  onUnauthorized = fn;
+}
+
 /**
  * /api/* を呼ぶ。
  * 失敗したときは、サーバーが返したエラーメッセージをそのまま Error にして投げる。
@@ -17,6 +24,8 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+
+  if (res.status === 401) onUnauthorized?.();
 
   if (res.status === 204) return undefined as T;
 

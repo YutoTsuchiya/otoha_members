@@ -2,15 +2,15 @@
 
 オーケストラの座席表を作るためのWebアプリです。
 
-- **イベント**（例: 第50回定期演奏会）を複数持てる
-- イベントに**メンバー**を1人ずつ登録する
-- イベントに**曲**を追加するとき、その曲を弾くメンバーを選ぶ
+- **演奏**（例: 第50回定期演奏会）を複数持てる
+- 演奏に**メンバー**を1人ずつ登録する
+- 演奏に**曲**を追加するとき、その曲を弾くメンバーを選ぶ
 - 曲ごとの**座席表**で、名前入りの丸をドラッグして並び替える
   - 丸は必ず真円（`width` = `height` = 72px + `border-radius: 50%`）
   - 行数の既定値は `max(floor(人数 / 6), 4)`。画面の +/− で変更できる（人数はできるだけ均等に振り分ける）
   - 2行目以降を半人分ずらす「ジグザグ」表示で、後ろの列の人が前の列の隙間から見える
 - 席の配置は曲ごとに Cloudflare D1 に保存される（行の人数は固定ではなく、誰かを別の行へ動かしても他の人の配置は変わらない）
-- 閲覧も編集も誰でも可（認証なし）
+- 共通パスワードでログインして閲覧・編集する（全員同じパスワードを共有）
 
 ## 構成
 
@@ -43,6 +43,33 @@ npm run cf:dev     # wrangler pages dev (http://localhost:8788)
 > Vite のホットリロードを使いたい場合は `npx wrangler pages dev -- npm run dev` のプロキシモードが便利です。
 
 ローカルのD1データは `.wrangler/state/` に保存されます。消したいときは `.wrangler` ディレクトリを削除してください。
+
+> 既存のローカルDBに新しい列を追加した場合、`CREATE TABLE IF NOT EXISTS` では反映されません。
+> 色分け・共有リンクの列を追加するには、次のように手動で反映してください:
+>
+> ```bash
+> npx wrangler d1 execute otoha-members --local --command "ALTER TABLE songs ADD COLUMN group_names TEXT NOT NULL DEFAULT '[]'"
+> npx wrangler d1 execute otoha-members --local --command "ALTER TABLE song_members ADD COLUMN color TEXT"
+> npx wrangler d1 execute otoha-members --local --command "ALTER TABLE events ADD COLUMN share_token TEXT"
+> ```
+
+## 認証
+
+アプリ全体が共通パスワードで保護されています。シークレットは2つ:
+
+| シークレット | 内容 |
+|---|---|
+| `AUTH_PASSWORD` | 全員が共有するパスワード |
+| `AUTH_SECRET` | セッション（Cookie）署名用の鍵。適当な長いランダム文字列が安全 |
+
+**ローカル開発**では、`wrangler pages dev` が `.dev.vars` を読まないため、`package.json` の `cf:dev` スクリプトに `--binding` フラグで値を渡しています。値を変えるときは `cf:dev` を編集してください。
+
+**本番**では Cloudflare のシークレットとして設定します:
+
+```bash
+npx wrangler pages secret put AUTH_PASSWORD
+npx wrangler pages secret put AUTH_SECRET
+```
 
 ## Cloudflare へのデプロイ
 
@@ -83,8 +110,11 @@ npm run deploy
 
 | Method | Path | 内容 |
 |---|---|---|
-| GET / POST | `/api/events` | イベント一覧（曲数・人数つき） / 作成 |
-| GET / PATCH / DELETE | `/api/events/:id` | イベント取得 / 改名 / 削除 |
+| POST | `/api/auth/login` | ログイン（`password`） |
+| POST | `/api/auth/logout` | ログアウト |
+| GET | `/api/auth/me` | 認証状態の確認 |
+| GET / POST | `/api/events` | 演奏一覧（曲数・人数つき） / 作成 |
+| GET / PATCH / DELETE | `/api/events/:id` | 演奏取得 / 改名 / 削除 |
 | GET / POST | `/api/events/:id/members` | メンバー一覧 / 追加 |
 | PATCH / DELETE | `/api/members/:id` | メンバー改名 / 削除 |
 | GET / POST | `/api/events/:id/songs` | 曲一覧 / 作成（`rows` で出演者の配置を指定） |

@@ -1,19 +1,26 @@
 import type { CSSProperties } from "react";
 import { useDraggable } from "@dnd-kit/core";
 
-/** 名前の長さに応じて文字サイズを落とし、円の中に収める */
-function fontSizeFor(name: string): number {
-  if (name.length <= 8) return 13;
-  if (name.length <= 14) return 11;
-  return 9;
+/** 名前の長さに応じて文字サイズを落とし、円の大きさに応じて縮める */
+function fontSizeFor(name: string): string {
+  const ratio = name.length <= 8 ? 0.18 : name.length <= 14 ? 0.15 : 0.12;
+  return `calc(var(--seat-size) * ${ratio})`;
 }
 
-export function SeatCircle({ name, dragging = false }: { name: string; dragging?: boolean }) {
+export function SeatCircle({
+  name,
+  color,
+  dragging = false,
+}: {
+  name: string;
+  color?: string | null;
+  dragging?: boolean;
+}) {
+  const className = ["seat-circle", dragging ? "dragging" : "", color ?? ""]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <div
-      className={dragging ? "seat-circle dragging" : "seat-circle"}
-      style={{ fontSize: fontSizeFor(name) }}
-    >
+    <div className={className} style={{ fontSize: fontSizeFor(name) }}>
       {name}
     </div>
   );
@@ -22,6 +29,8 @@ export function SeatCircle({ name, dragging = false }: { name: string; dragging?
 interface Props {
   memberId: number;
   name: string;
+  /** 色分け。未割当は null。 */
+  color?: string | null;
   /** 行の何番目か。持ち上げている間、元の位置に留めておくために使う */
   index: number;
   /** 動いている円は DragOverlay が描くので、元の席は隠しておく */
@@ -34,7 +43,7 @@ interface Props {
  * どこに落ちるかは座席表側が円の中心どうしで判定するので、
  * ここはドラッグできることだけを担当する。
  */
-export default function SortableSeat({ memberId, name, index, hidden, onRemove }: Props) {
+export default function SortableSeat({ memberId, name, color, index, hidden, onRemove }: Props) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: memberId });
 
   // 持ち上げている間は行の幅を取らないようにする（元の場所に穴が残らないように）。
@@ -55,7 +64,7 @@ export default function SortableSeat({ memberId, name, index, hidden, onRemove }
       {...attributes}
       {...listeners}
     >
-      <SeatCircle name={name} />
+      <SeatCircle name={name} color={color} />
       <button
         type="button"
         className="seat-remove"

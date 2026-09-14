@@ -49,16 +49,23 @@ export default function EventList({ onOpen }: Props) {
       await load();
     });
 
+  const copyEvent = (eventId: number) =>
+    run(async () => {
+      await api<EventItem>(`/api/events/${eventId}/copy`, { method: "POST" });
+      setDialogOpen(false);
+      await load();
+    });
+
   return (
     <div className="page page-fab">
-      <h2 className="page-title">イベント一覧</h2>
+      <h2 className="page-title">演奏一覧</h2>
 
       {error && <p className="error-text">{error}</p>}
 
       {loading ? (
         <p className="muted">読み込み中…</p>
       ) : events.length === 0 ? (
-        <p className="muted">イベントがまだありません。右下の ＋ から追加してください。</p>
+        <p className="muted">演奏がまだありません。右下の ＋ から追加してください。</p>
       ) : (
         <ul className="list event-list">
           {events.map((event) => (
@@ -69,8 +76,11 @@ export default function EventList({ onOpen }: Props) {
                 onClick={() => onOpen(event.id, event.name)}
               >
                 <span className="item-name">{event.name}</span>
-                <span className="event-count">
-                  {event.song_count}曲・{event.member_count}人
+                <span className="row-meta">
+                  <span className="event-count">
+                    {event.song_count}曲・{event.member_count}人
+                  </span>
+                  <span className="row-arrow" aria-hidden="true">→</span>
                 </span>
               </button>
             </li>
@@ -81,7 +91,7 @@ export default function EventList({ onOpen }: Props) {
       <button
         type="button"
         className="fab"
-        aria-label="新しいイベントを追加"
+        aria-label="新しい演奏を追加"
         onClick={() => {
           setNewName("");
           setDialogOpen(true);
@@ -98,14 +108,14 @@ export default function EventList({ onOpen }: Props) {
           }}
         >
           <form
-            className="modal"
+            className="modal modal-wide"
             onSubmit={(e) => {
               e.preventDefault();
               void createEvent();
             }}
           >
-            <h2>新しいイベント</h2>
-            <p className="modal-hint">イベント名を入力してください（例: 第50回定期演奏会）。</p>
+            <h2>新しい演奏</h2>
+            <p className="modal-hint">演奏名を入力してください（例: 第50回定期演奏会）。</p>
             <input
               autoFocus
               value={newName}
@@ -120,6 +130,29 @@ export default function EventList({ onOpen }: Props) {
                 作成
               </button>
             </div>
+
+            {events.length > 0 && (
+              <div className="copy-section">
+                <p className="modal-hint">既存の演奏をコピー</p>
+                <ul className="list compact song-list">
+                  {events.map((event) => (
+                    <li key={event.id} className="list-item">
+                      <button
+                        type="button"
+                        className="item-main song-row"
+                        disabled={busy}
+                        onClick={() => copyEvent(event.id)}
+                      >
+                        <span className="item-name">{event.name}</span>
+                        <span className="event-count">
+                          {event.song_count}曲・{event.member_count}人
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </form>
         </div>
       )}
