@@ -1,6 +1,6 @@
-/** 行数の既定値: max(人数÷5 の切り上げ, 4) */
+/** 行数の既定値: max(人数÷6 の切り捨て, 4) */
 function defaultRowCount(count: number): number {
-  return Math.max(Math.ceil(count / 5), 4);
+  return Math.max(Math.floor(count / 6), 4);
 }
 
 /**
