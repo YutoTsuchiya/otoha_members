@@ -231,32 +231,97 @@ function colorsFrom(rows: SeatRow[]): Record<number, string> {
   return colors;
 }
 
-/** 曲の席を丸ごと置き換える（全置換なので何度実行しても同じ結果になる）。色は保持する。 */
+/** 曲の席を差分で更新する（変更のあった行だけ書く）。既存の席の色は維持される。 */
 export async function replaceSongSeats(
   db: D1Database,
   songId: number,
   rows: (number | null)[][],
 ): Promise<void> {
-  // 並び替えでも色を保持できるよう、既存の色を先に控えておく
+  // 現在の席を読み、メンバー（member_id）と空席（NULL）に分ける
   const existing = await db
-    .prepare("SELECT member_id, color FROM song_members WHERE song_id = ?")
+    .prepare("SELECT id, member_id, row_index, position FROM song_members WHERE song_id = ?")
     .bind(songId)
-    .all<{ member_id: number; color: string | null }>();
-  const colorByMember = new Map(existing.results.map((r) => [r.member_id, r.color]));
+    .all<{ id: number; member_id: number | null; row_index: number; position: number }>();
 
-  const statements = [
-    db.prepare("DELETE FROM song_members WHERE song_id = ?").bind(songId),
-    ...rows.flatMap((row, rowIndex) =>
-      row.map((memberId, position) =>
+  const existingByMember = new Map<number, { id: number; row_index: number; position: number }>();
+  const existingEmpty: { row_index: number; position: number }[] = [];
+  for (const seat of existing.results) {
+    if (seat.member_id === null) {
+      existingEmpty.push({ row_index: seat.row_index, position: seat.position });
+    } else {
+      existingByMember.set(seat.member_id, {
+        id: seat.id,
+        row_index: seat.row_index,
+        position: seat.position,
+      });
+    }
+  }
+
+  // 新しい配置を、メンバー（member_id → 位置）と空席（位置の列）に分ける
+  const desiredMembers = new Map<number, { row_index: number; position: number }>();
+  const desiredEmpty: { row_index: number; position: number }[] = [];
+  rows.forEach((row, rowIndex) => {
+    row.forEach((memberId, position) => {
+      if (memberId === null) desiredEmpty.push({ row_index: rowIndex, position });
+      else desiredMembers.set(memberId, { row_index: rowIndex, position });
+    });
+  });
+
+  const statements: D1PreparedStatement[] = [];
+
+  // メンバーの差分: 新規は INSERT、移動は UPDATE、消えた人は DELETE
+  for (const [memberId, pos] of desiredMembers) {
+    const current = existingByMember.get(memberId);
+    if (!current) {
+      statements.push(
         db
           .prepare(
-            "INSERT INTO song_members (song_id, member_id, row_index, position, color) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO song_members (song_id, member_id, row_index, position, color) VALUES (?, ?, ?, ?, NULL)",
           )
-          .bind(songId, memberId, rowIndex, position, memberId === null ? null : (colorByMember.get(memberId) ?? null)),
-      ),
-    ),
-  ];
-  await db.batch(statements);
+          .bind(songId, memberId, pos.row_index, pos.position),
+      );
+    } else if (current.row_index !== pos.row_index || current.position !== pos.position) {
+      statements.push(
+        db
+          .prepare("UPDATE song_members SET row_index = ?, position = ? WHERE id = ?")
+          .bind(pos.row_index, pos.position, current.id),
+      );
+    }
+  }
+  for (const [memberId, current] of existingByMember) {
+    if (!desiredMembers.has(memberId)) {
+      statements.push(db.prepare("DELETE FROM song_members WHERE id = ?").bind(current.id));
+    }
+  }
+
+  // 空席は識別子がないため、変化があれば全削除 → 全追加で揃える
+  const byPos = (
+    a: { row_index: number; position: number },
+    b: { row_index: number; position: number },
+  ) => a.row_index - b.row_index || a.position - b.position;
+  existingEmpty.sort(byPos);
+  desiredEmpty.sort(byPos);
+  const emptyChanged =
+    existingEmpty.length !== desiredEmpty.length ||
+    existingEmpty.some(
+      (seat, i) => seat.row_index !== desiredEmpty[i].row_index || seat.position !== desiredEmpty[i].position,
+    );
+  if (emptyChanged) {
+    statements.push(
+      db.prepare("DELETE FROM song_members WHERE song_id = ? AND member_id IS NULL").bind(songId),
+    );
+    for (const seat of desiredEmpty) {
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO song_members (song_id, member_id, row_index, position, color) VALUES (?, NULL, ?, ?, NULL)",
+          )
+          .bind(songId, seat.row_index, seat.position),
+      );
+    }
+  }
+
+  if (statements.length > 0) await db.batch(statements);
 }
 
 /** パート一覧（色と名前）を更新する。 */
@@ -277,10 +342,34 @@ export async function updateSongColors(
   songId: number,
   colors: Record<number, string | null>,
 ): Promise<void> {
-  const statements = Object.entries(colors).map(([memberId, color]) =>
+  const entries = Object.entries(colors);
+  const statements: D1PreparedStatement[] = entries.map(([memberId, color]) =>
     db
       .prepare("UPDATE song_members SET color = ? WHERE song_id = ? AND member_id = ?")
       .bind(color ?? null, songId, Number(memberId)),
   );
+
+  // colors に含まれない（＝色を外された）座っているメンバーの色をクリアする。
+  // クライアントは「色なし」のメンバーを colors から削除するため、明示的に消さないと残ってしまう。
+  const coloredIds = entries.map(([memberId]) => Number(memberId));
+  if (coloredIds.length === 0) {
+    statements.push(
+      db
+        .prepare(
+          "UPDATE song_members SET color = NULL WHERE song_id = ? AND member_id IS NOT NULL AND color IS NOT NULL",
+        )
+        .bind(songId),
+    );
+  } else {
+    const placeholders = coloredIds.map(() => "?").join(",");
+    statements.push(
+      db
+        .prepare(
+          `UPDATE song_members SET color = NULL WHERE song_id = ? AND member_id IS NOT NULL AND color IS NOT NULL AND member_id NOT IN (${placeholders})`,
+        )
+        .bind(songId, ...coloredIds),
+    );
+  }
+
   if (statements.length > 0) await db.batch(statements);
 }
