@@ -149,6 +149,8 @@ export default function SeatingEditor({
   const [nameInput, setNameInput] = useState(songName);
   const [parts, setParts] = useState<Part[]>([]);
   const [colors, setColors] = useState<Record<number, string>>({});
+  // 未保存の変更があるか（戻るボタンでまとめて保存する）
+  const [dirty, setDirty] = useState(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
   // 前回の配置での素の位置（白い四角を基準にした相対座標）。
@@ -157,7 +159,7 @@ export default function SeatingEditor({
   const geometry = useRef<RowGeometry[]>([]);
   const gapRef = useRef<Gap | null>(null);
   const landingTimer = useRef<number | null>(null);
-  const saveSeq = useRef(0);
+  const flushingRef = useRef(false);
   const { error, setError, busy, run } = useAsyncAction();
   const { seatSize, scrollRef } = useSeatSize(layout);
 
@@ -192,6 +194,17 @@ export default function SeatingEditor({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [panelOpen]);
+
+  // 未保存の変更があるまま閉じようとしたら警告する
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
 
   // 配置が変わったとき、円がすっと移動して見えるようにする（FLIP）。
   // 前回の位置との差分を打ち消す位置から元の位置へ animate する。
@@ -281,32 +294,47 @@ export default function SeatingEditor({
     setGap(next);
   };
 
-  const save = useCallback(
-    async (next: number[][]) => {
-      const seq = ++saveSeq.current;
-      setStatus("saving");
-      try {
-        const res = await api<{ rows: (number | null)[][] }>(`/api/songs/${songId}/seats`, {
-          method: "PUT",
-          body: { rows: toWire(next) },
-        });
-        if (seq !== saveSeq.current) return;
-        // 同じ内容なら状態を作り直さない（アニメーションが途中で止まってしまうため）
-        setLayout((current) => {
-          const wire = fromWire(res.rows);
-          return sameLayout(current, wire) ? current : wire;
-        });
-        setStatus("saved");
-        setError(null);
-      } catch (err) {
-        if (seq !== saveSeq.current) return;
-        setStatus("error");
-        setError(errorMessage(err));
-        await load();
-      }
-    },
-    [load, setError, songId],
-  );
+  // 未保存の変更（席・色・パート）をまとめて保存する。成功で true。
+  const flush = async (): Promise<boolean> => {
+    setStatus("saving");
+    try {
+      await api(`/api/songs/${songId}/seats`, { method: "PUT", body: { rows: toWire(layout) } });
+      await api(`/api/songs/${songId}`, { method: "PATCH", body: { parts, colors } });
+      setStatus("saved");
+      setDirty(false);
+      setError(null);
+      return true;
+    } catch (err) {
+      setStatus("error");
+      setError(errorMessage(err));
+      return false;
+    }
+  };
+
+  // 戻るボタン。未保存の変更があれば保存してから戻る（保存に失敗したら留まる）。
+  const handleBack = async () => {
+    if (flushingRef.current) return;
+    if (!dirty) {
+      onBack();
+      return;
+    }
+    flushingRef.current = true;
+    const ok = await flush();
+    flushingRef.current = false;
+    if (ok) onBack();
+  };
+
+  // 保存ボタン。未保存の変更をまとめて保存する（画面はそのまま）。
+  const saveNow = async () => {
+    if (flushingRef.current || !dirty) return;
+    flushingRef.current = true;
+    await flush();
+    flushingRef.current = false;
+  };
+
+  const unsaved = dirty && status !== "saving" && status !== "error";
+  const statusClass = unsaved ? "unsaved" : status;
+  const statusText = unsaved ? "未保存の変更があります" : statusLabel(status);
 
   const renameSong = () =>
     run(async () => {
@@ -324,35 +352,25 @@ export default function SeatingEditor({
     });
   };
 
-  // 色分け（パート一覧とメンバーごとの色）を保存する
-  const saveParts = (nextParts: Part[], nextColors: Record<number, string>) => {
-    void api(`/api/songs/${songId}`, {
-      method: "PATCH",
-      body: { parts: nextParts, colors: nextColors },
-    })
-      .then(() => setError(null))
-      .catch((err) => setError(errorMessage(err)));
-  };
-
   const changeColor = (memberId: number, color: string | null) => {
     const next = { ...colors };
     if (color) next[memberId] = color;
     else delete next[memberId];
     setColors(next);
-    saveParts(parts, next);
+    setDirty(true);
   };
 
   const changePartName = (color: string, name: string) => {
     setParts((list) => list.map((p) => (p.color === color ? { ...p, name } : p)));
+    setDirty(true);
   };
 
   const addPart = () => {
     const used = new Set(parts.map((p) => p.color));
     const nextColor = COLOR_PALETTE.find((c) => !used.has(c));
     if (!nextColor) return;
-    const next = [...parts, { color: nextColor, name: "" }];
-    setParts(next);
-    saveParts(next, colors);
+    setParts([...parts, { color: nextColor, name: "" }]);
+    setDirty(true);
   };
 
   const removePart = (color: string) => {
@@ -364,11 +382,7 @@ export default function SeatingEditor({
       if (c === color) delete nextColors[Number(memberId)];
     }
     setColors(nextColors);
-    saveParts(next, nextColors);
-  };
-
-  const commitParts = () => {
-    saveParts(parts, colors);
+    setDirty(true);
   };
 
   const sensors = useSensors(
@@ -457,15 +471,15 @@ export default function SeatingEditor({
     landingTimer.current = window.setTimeout(() => setLandingId(null), LANDING_MS);
 
     setLayout(next);
-    void save(next);
+    setDirty(true);
   };
 
   const removeSeat = (memberId: number) => {
     const next = removeMember(layout, memberId);
     setLayout(next);
-    void save(next);
+    setDirty(true);
     if (isEmptySeat(memberId)) return; // 空席は色を持たない
-    // 席から外れた人の色も状態から外す（DB側は replaceSongSeats で消える）
+    // 席から外れた人の色も状態から外す（保存時に DB からも消える）
     setColors((current) => {
       const nextColors = { ...current };
       delete nextColors[memberId];
@@ -474,18 +488,16 @@ export default function SeatingEditor({
   };
 
   const addSeat = (memberId: number) => {
-    const next = appendMember(layout, memberId);
-    setLayout(next);
-    void save(next);
+    setLayout(appendMember(layout, memberId));
+    setDirty(true);
   };
 
   // 空席を1つ末尾の行に足す（重複しない負のIDを振る）
   const addEmptySeat = () => {
     const ids = layout.flat().filter(isEmptySeat);
     const nextId = ids.length > 0 ? Math.min(...ids) - 1 : -1;
-    const next = appendMember(layout, nextId);
-    setLayout(next);
-    void save(next);
+    setLayout(appendMember(layout, nextId));
+    setDirty(true);
   };
 
   const toggleSeat = (memberId: number) => {
@@ -497,15 +509,14 @@ export default function SeatingEditor({
   const changeRowCount = (delta: number) => {
     const next = Math.min(Math.max(rowCount + delta, 1), maxRows);
     if (next === rowCount) return;
-    const relaid = distribute(totalSeats, next);
-    setLayout(relaid);
-    void save(relaid);
+    setLayout(distribute(totalSeats, next));
+    setDirty(true);
   };
 
   return (
     <div className="page">
       <div className="page-head">
-        <button type="button" className="button-sub" onClick={onBack}>
+        <button type="button" className="button-sub" onClick={() => void handleBack()}>
           ← {eventName}
         </button>
         <div className="page-title-row">
@@ -554,7 +565,17 @@ export default function SeatingEditor({
             空席を追加
           </button>
         </div>
-        <span className={`save-status ${status}`}>{statusLabel(status)}</span>
+        <div className="seat-toolbar-group">
+          <button
+            type="button"
+            className="button-primary"
+            onClick={() => void saveNow()}
+            disabled={!dirty || status === "saving"}
+          >
+            保存
+          </button>
+          <span className={`save-status ${statusClass}`}>{statusText}</span>
+        </div>
       </div>
 
       {totalSeats.length === 0 ? (
@@ -706,7 +727,6 @@ export default function SeatingEditor({
                   <input
                     value={part.name}
                     onChange={(e) => changePartName(part.color, e.target.value)}
-                    onBlur={commitParts}
                     placeholder="パート名"
                   />
                   <button

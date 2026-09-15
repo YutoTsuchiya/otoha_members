@@ -707,6 +707,10 @@ button:focus-visible {
   color: var(--danger);
 }
 
+.save-status.unsaved {
+  color: #b45309;
+}
+
 /* 横に広い座席表はスクロールできるようにする */
 .seat-grid-scroll {
   overflow-x: auto;
