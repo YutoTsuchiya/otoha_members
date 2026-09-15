@@ -55,6 +55,15 @@ export default function MemberSelector({
         const color = colors?.[member.id] ?? null;
         return (
           <li key={member.id} className="member-option-row">
+            {onColorChange && colorOrder && (
+              <button
+                type="button"
+                className={`member-color${color ? ` member-color-${color}` : ""}`}
+                aria-label={`${member.name} の色を変更`}
+                title={`${member.name} の色を変更`}
+                onClick={() => onColorChange(member.id, nextColor(color, colorOrder))}
+              />
+            )}
             <button
               type="button"
               className={isSelected ? "member-option selected" : "member-option"}
@@ -66,14 +75,6 @@ export default function MemberSelector({
                 {isSelected ? "✓" : ""}
               </span>
             </button>
-            {onColorChange && colorOrder && (
-              <button
-                type="button"
-                className={`member-color${color ? ` member-color-${color}` : ""}`}
-                aria-label={`${member.name} の色を変更`}
-                onClick={() => onColorChange(member.id, nextColor(color, colorOrder))}
-              />
-            )}
           </li>
         );
       })}

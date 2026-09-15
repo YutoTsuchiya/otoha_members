@@ -618,6 +618,8 @@ button:focus-visible {
 .member-option-check {
   flex: none;
   width: 1.4em;
+  /* チェックの有無で行高が変わらないよう、行高を固定する */
+  line-height: 1;
   color: var(--accent);
   font-size: 17px;
   font-weight: 700;
@@ -1045,7 +1047,8 @@ button:focus-visible {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 1px solid var(--border);
+  /* 未割当は破線の白円で「色なし」を示す（参加チェックの✓と区別） */
+  border: 1.5px dashed var(--border);
   background: #fff;
   cursor: pointer;
   flex: none;
@@ -1081,6 +1084,18 @@ button:focus-visible {
 .member-color-pink {
   background: #db2777;
   border-color: #db2777;
+}
+
+/* 色が付いたときは塗りつぶしの実線にする（未割当の破線と区別） */
+.member-color-red,
+.member-color-blue,
+.member-color-yellow,
+.member-color-green,
+.member-color-purple,
+.member-color-orange,
+.member-color-cyan,
+.member-color-pink {
+  border-style: solid;
 }
 
 /* 共有URLモーダル: URL入力とコピーを横並びに */
