@@ -146,6 +146,7 @@ export default function SeatingEditor({
   const [landingId, setLandingId] = useState<number | null>(null);
   const [gap, setGap] = useState<Gap | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState<"settings" | "members">("members");
   const [nameInput, setNameInput] = useState(songName);
   const [parts, setParts] = useState<Part[]>([]);
   const [colors, setColors] = useState<Record<number, string>>({});
@@ -357,6 +358,10 @@ export default function SeatingEditor({
     if (color) next[memberId] = color;
     else delete next[memberId];
     setColors(next);
+    // 色を付けたとき、まだ参加していなければ自動で参加させる
+    if (color && !seated.includes(memberId)) {
+      setLayout(appendMember(layout, memberId));
+    }
     setDirty(true);
   };
 
@@ -528,6 +533,7 @@ export default function SeatingEditor({
             aria-expanded={panelOpen}
             onClick={() => {
               setNameInput(songName);
+              if (!panelOpen) setPanelTab("members");
               setPanelOpen((open) => !open);
             }}
           >
@@ -688,85 +694,102 @@ export default function SeatingEditor({
           <div className="panel-backdrop" onClick={() => setPanelOpen(false)} />
           <aside className="side-panel" aria-label="曲の設定">
             <div className="side-panel-head">
-              <h3 className="side-panel-title">曲の設定</h3>
-              <button
-                type="button"
-                className="panel-close"
-                aria-label="閉じる"
-                onClick={() => setPanelOpen(false)}
-              >
-                ×
-              </button>
+              <div className="segmented-control" role="tablist" aria-label="設定を切り替え">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={panelTab === "settings"}
+                  className={`segment${panelTab === "settings" ? " active" : ""}`}
+                  onClick={() => setPanelTab("settings")}
+                >
+                  曲の設定
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={panelTab === "members"}
+                  className={`segment${panelTab === "members" ? " active" : ""}`}
+                  onClick={() => setPanelTab("members")}
+                >
+                  参加者
+                </button>
+              </div>
             </div>
 
-            <section className="panel-section">
-              <h4 className="panel-section-title">曲のタイトル</h4>
-              <form
-                className="inline-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void renameSong();
-                }}
-              >
-                <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
-                <button
-                  type="submit"
-                  className="button-primary"
-                  disabled={busy || !nameInput.trim() || nameInput.trim() === songName}
-                >
-                  保存
-                </button>
-              </form>
-            </section>
-
-            <section className="panel-section">
-              <h4 className="panel-section-title">パート（色分け）</h4>
-              {parts.map((part) => (
-                <div key={part.color} className="group-name-row">
-                  <span className={`legend-dot legend-dot-${part.color}`} aria-hidden="true" />
-                  <input
-                    value={part.name}
-                    onChange={(e) => changePartName(part.color, e.target.value)}
-                    placeholder="パート名"
-                  />
-                  <button
-                    type="button"
-                    className="part-remove"
-                    aria-label="このパートを削除"
-                    onClick={() => removePart(part.color)}
+            {panelTab === "settings" ? (
+              <>
+                <section className="panel-section">
+                  <h4 className="panel-section-title">曲のタイトル</h4>
+                  <form
+                    className="inline-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void renameSong();
+                    }}
                   >
-                    ×
+                    <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
+                    <button
+                      type="submit"
+                      className="button-primary"
+                      disabled={busy || !nameInput.trim() || nameInput.trim() === songName}
+                    >
+                      保存
+                    </button>
+                  </form>
+                </section>
+
+                <section className="panel-section">
+                  <button type="button" className="button-danger panel-delete" onClick={deleteSong}>
+                    この曲を削除
                   </button>
-                </div>
-              ))}
-              {COLOR_PALETTE.some((c) => !parts.some((p) => p.color === c)) && (
-                <button type="button" className="part-add" onClick={addPart}>
-                  追加
-                </button>
-              )}
-            </section>
+                </section>
+              </>
+            ) : (
+              <>
+                <section className="panel-section">
+                  <h4 className="panel-section-title">パート（色分け）</h4>
+                  {parts.map((part) => (
+                    <div key={part.color} className="group-name-row">
+                      <span className={`legend-dot legend-dot-${part.color}`} aria-hidden="true" />
+                      <input
+                        value={part.name}
+                        onChange={(e) => changePartName(part.color, e.target.value)}
+                        placeholder="パート名"
+                      />
+                      <button
+                        type="button"
+                        className="part-remove"
+                        aria-label="このパートを削除"
+                        onClick={() => removePart(part.color)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {COLOR_PALETTE.some((c) => !parts.some((p) => p.color === c)) && (
+                    <button type="button" className="part-add" onClick={addPart}>
+                      追加
+                    </button>
+                  )}
+                </section>
 
-            <section className="panel-section panel-section-fill">
-              <h4 className="panel-section-title">参加する人（{seated.length}人）</h4>
-              {members.length === 0 ? (
-                <p className="muted">この演奏にはまだ参加者がいません。</p>
-              ) : (
-                <MemberSelector
-                  members={members}
-                  selectedIds={selectedIds}
-                  onToggle={toggleSeat}
-                  colorOrder={parts.map((p) => p.color)}
-                  colors={colors}
-                  onColorChange={changeColor}
-                />
-              )}
-            </section>
-
-            <section className="panel-section">
-              <button type="button" className="button-danger panel-delete" onClick={deleteSong}>
-                この曲を削除
-              </button>
-            </section>
+                <section className="panel-section panel-section-fill">
+                  <h4 className="panel-section-title">参加する人（{seated.length}人）</h4>
+                  {members.length === 0 ? (
+                    <p className="muted">この演奏にはまだ参加者がいません。</p>
+                  ) : (
+                    <MemberSelector
+                      members={members}
+                      selectedIds={selectedIds}
+                      onToggle={toggleSeat}
+                      colorOrder={parts.map((p) => p.color)}
+                      colors={colors}
+                      onColorChange={changeColor}
+                    />
+                  )}
+                </section>
+              </>
+            )}
           </aside>
         </>
       )}
